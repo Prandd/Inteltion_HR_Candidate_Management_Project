@@ -1,0 +1,38 @@
+# One command for teammates:  docker compose up --build
+# -> backend on http://localhost:8000  (Swagger UI at /docs), seeded with mock candidates.
+# No .env, no Python, no Postgres needed - SQLite + local disk, all inside the container.
+# This file mirrors where it will live at the real repo root.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: sqlite:////app/data/dev.db
+      UPLOAD_DIR: /app/data/uploads
+      SEED_FILE: /contracts/mock-candidates.json
+      API_BASE_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost:5173,http://localhost:5174
+      MAX_UPLOAD_MB: "10"
+    volumes:
+      - ./backend/data:/app/data          # DB + uploaded CVs persist on the host
+      - ./shared-contracts:/contracts:ro  # seed data, read-only
+
+  # ---- Day 6+ : switch to Postgres by uncommenting and setting DATABASE_URL above to
+  #      postgresql://inteltion:inteltion@postgres:5432/inteltion_mvp
+  # postgres:
+  #   image: postgres:16
+  #   environment:
+  #     POSTGRES_USER: inteltion
+  #     POSTGRES_PASSWORD: inteltion
+  #     POSTGRES_DB: inteltion_mvp
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+
+# volumes:
+#   pgdata:
