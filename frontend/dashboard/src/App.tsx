@@ -12,6 +12,8 @@ import Dashboard from "./pages/Dashboard";
 import CandidateDetail from "./pages/CandidateDetail";
 import UploadCandidate from "./pages/UploadCandidate";
 import CandidatePipeline from "./pages/CandidatePipeline";
+import Positions from "./pages/Positions";
+import PositionRequirements from "./pages/PositionRequirements";
 
 
 
@@ -50,6 +52,18 @@ function App(){
                     <Route
                         path="/pipeline"
                         element={<CandidatePipeline/>}
+                    />
+
+
+                    <Route
+                        path="/positions"
+                        element={<Positions/>}
+                    />
+
+
+                    <Route
+                        path="/positions/new"
+                        element={<PositionRequirements/>}
                     />
 
 

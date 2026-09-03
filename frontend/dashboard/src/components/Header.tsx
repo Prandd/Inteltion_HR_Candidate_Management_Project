@@ -1,4 +1,21 @@
+import { useLocation } from "react-router-dom";
+
+
 function Header(){
+
+    const location = useLocation();
+
+    const pageTitle = location.pathname === "/positions/new"
+        ? "Position Requirements"
+        : location.pathname === "/positions"
+            ? "Positions List"
+            : "Dashboard";
+
+    const pageDescription = location.pathname === "/positions/new"
+        ? ""
+        : location.pathname === "/positions"
+            ? "Manage current job openings and candidate pipelines."
+            : "Manage your recruitment pipeline";
 
     return (
 
@@ -22,13 +39,15 @@ function Header(){
                     font-bold
                     "
                 >
-                    Dashboard
+                    {pageTitle}
                 </h1>
 
 
-                <p className="text-gray-500">
-                    Manage your recruitment pipeline
-                </p>
+                {pageDescription && (
+                    <p className="text-gray-500">
+                        {pageDescription}
+                    </p>
+                )}
 
             </div>
 
