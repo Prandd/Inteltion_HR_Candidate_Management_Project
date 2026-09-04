@@ -1,0 +1,385 @@
+[
+  {
+    "candidate_id": "11111111-1111-1111-1111-111111111111",
+    "full_name": "Napat Charoenwong",
+    "email": "napat.charoenwong@example.com",
+    "phone": "0812345678",
+    "location": "Bangkok, Thailand",
+    "applied_position": "Senior Backend Engineer",
+    "summary": "Backend engineer with 8 years building payment and data platforms. Strong in Python and distributed systems, comfortable owning a service end to end.",
+    "skills": [
+      { "skill": "Python", "tools": ["FastAPI", "Django", "Celery"] },
+      { "skill": "SQL", "tools": ["PostgreSQL", "BigQuery"] },
+      { "skill": "Cloud", "tools": ["Azure", "AWS"] },
+      { "skill": "DevOps", "tools": ["Docker", "Kubernetes"] }
+    ],
+    "experience": [
+      {
+        "company": "SCB TechX",
+        "position": "Senior Backend Engineer",
+        "start_date": "2022-03",
+        "end_date": "Present",
+        "description": "Lead a 4-person squad on the payments ledger service. Cut p99 latency 40% by reworking the settlement pipeline."
+      },
+      {
+        "company": "Agoda",
+        "position": "Backend Engineer",
+        "start_date": "2018-06",
+        "end_date": "2022-02",
+        "description": "Owned pricing APIs serving 20k rps. Built the experimentation framework used by 30+ teams."
+      }
+    ],
+    "experience_total": 8,
+    "current_salary": 120000,
+    "expected_salary": 150000,
+    "education": [
+      { "institution": "Chulalongkorn University", "degree": "B.Eng.", "field": "Computer Engineering", "year": "2017" }
+    ],
+    "hr_comment": "",
+    "line_manager_comment": "",
+    "extraction_confidence": 0.95,
+    "raw_text_snippet": "NAPAT CHAROENWONG  Senior Backend Engineer  Bangkok  napat.charoenwong@example.com  0812345678  SUMMARY Backend engineer with 8 years...",
+    "status": "Review",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-25T09:12:00Z",
+    "updated_at": "2026-08-25T09:12:00Z"
+  },
+  {
+    "candidate_id": "22222222-2222-2222-2222-222222222222",
+    "full_name": "Ploychompoo Sirikul",
+    "email": "ploychompoo.s@example.com",
+    "phone": "0899988771",
+    "location": "Chiang Mai, Thailand",
+    "applied_position": "Data Engineer",
+    "summary": "Data engineer focused on batch and streaming pipelines. Built the analytics warehouse from scratch at a Series B startup.",
+    "skills": [
+      { "skill": "Data Engineering", "tools": ["Airflow", "dbt", "Spark"] },
+      { "skill": "Python", "tools": ["pandas", "PySpark"] },
+      { "skill": "SQL", "tools": ["Snowflake", "PostgreSQL"] }
+    ],
+    "experience": [
+      {
+        "company": "Sertis",
+        "position": "Data Engineer",
+        "start_date": "2021-01",
+        "end_date": "Present",
+        "description": "Designed the dbt project (200+ models) powering exec dashboards. Owned Airflow on Kubernetes."
+      },
+      {
+        "company": "Wongnai",
+        "position": "Junior Data Engineer",
+        "start_date": "2019-05",
+        "end_date": "2020-12",
+        "description": "ETL for restaurant and review data. Migrated nightly cron jobs to Airflow."
+      }
+    ],
+    "experience_total": 6,
+    "current_salary": 85000,
+    "expected_salary": 110000,
+    "education": [
+      { "institution": "Chiang Mai University", "degree": "B.Sc.", "field": "Computer Science", "year": "2019" }
+    ],
+    "hr_comment": "Phone screen done 27 Aug - strong communicator, open to relocating to Bangkok.",
+    "line_manager_comment": "",
+    "extraction_confidence": 0.91,
+    "raw_text_snippet": "PLOYCHOMPOO SIRIKUL  Data Engineer  Chiang Mai  EXPERIENCE Sertis (2021-present) Data Engineer...",
+    "status": "Assessment",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-24T14:03:00Z",
+    "updated_at": "2026-08-27T10:20:00Z"
+  },
+  {
+    "candidate_id": "33333333-3333-3333-3333-333333333333",
+    "full_name": "Thanawat Boonprasert",
+    "email": "thanawat.b@example.com",
+    "phone": "0861112233",
+    "location": "Nonthaburi, Thailand",
+    "applied_position": "Junior Frontend Engineer",
+    "summary": "New graduate. Two internships building React dashboards. Keen on design systems and accessibility.",
+    "skills": [
+      { "skill": "JavaScript", "tools": ["React", "TypeScript", "Vite"] },
+      { "skill": "CSS", "tools": ["Tailwind CSS", "Figma"] }
+    ],
+    "experience": [
+      {
+        "company": "LINE MAN Wongnai",
+        "position": "Frontend Intern",
+        "start_date": "2025-06",
+        "end_date": "2025-08",
+        "description": "Built the merchant onboarding wizard in React. Shipped 3 features to production."
+      }
+    ],
+    "experience_total": 1,
+    "current_salary": 0,
+    "expected_salary": 0,
+    "education": [
+      { "institution": "Kasetsart University", "degree": "B.Sc.", "field": "Software Engineering", "year": "2026" }
+    ],
+    "hr_comment": "",
+    "line_manager_comment": "",
+    "extraction_confidence": 0.83,
+    "raw_text_snippet": "THANAWAT BOONPRASERT  Fresh graduate  React developer  INTERNSHIP LINE MAN Wongnai...",
+    "status": "New",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-28T08:45:00Z",
+    "updated_at": "2026-08-28T08:45:00Z"
+  },
+  {
+    "candidate_id": "44444444-4444-4444-4444-444444444444",
+    "full_name": "Suchada Rojanapong",
+    "email": "suchada.rojanapong@example.com",
+    "phone": "0847778899",
+    "location": "Remote",
+    "applied_position": "Full-Stack Developer",
+    "summary": "Self-taught full-stack developer via a bootcamp and 4 years of freelance work. Ships fast, comfortable with ambiguity.",
+    "skills": [
+      { "skill": "JavaScript", "tools": ["Next.js", "Node.js", "Express"] },
+      { "skill": "Python", "tools": ["FastAPI"] },
+      { "skill": "SQL", "tools": ["PostgreSQL", "Prisma"] },
+      { "skill": "Cloud", "tools": ["Vercel", "Render"] }
+    ],
+    "experience": [
+      {
+        "company": "Freelance",
+        "position": "Full-Stack Developer",
+        "start_date": "2022-01",
+        "end_date": "Present",
+        "description": "Delivered 15+ web apps for SME clients - e-commerce, booking systems, internal tools."
+      },
+      {
+        "company": "Pomelo Fashion",
+        "position": "Junior Developer",
+        "start_date": "2021-02",
+        "end_date": "2021-12",
+        "description": "Maintained the storefront checkout flow."
+      }
+    ],
+    "experience_total": 4,
+    "current_salary": 70000,
+    "expected_salary": 95000,
+    "education": [],
+    "hr_comment": "No degree - bootcamp (Le Wagon 2021). Portfolio is solid.",
+    "line_manager_comment": "",
+    "extraction_confidence": 0.78,
+    "raw_text_snippet": "SUCHADA ROJANAPONG  Full-Stack Developer  Remote  PROJECTS 15+ client apps  BOOTCAMP Le Wagon...",
+    "status": "Needs information",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-26T16:30:00Z",
+    "updated_at": "2026-08-29T11:05:00Z"
+  },
+  {
+    "candidate_id": "55555555-5555-5555-5555-555555555555",
+    "full_name": "Kittipong Meesap",
+    "email": "kittipong.meesap@example.com",
+    "phone": "0812223344",
+    "location": "Bangkok, Thailand",
+    "applied_position": "DevOps Engineer",
+    "summary": "Infrastructure engineer, 5 years. Owns CI/CD and observability. On-call veteran.",
+    "skills": [
+      { "skill": "DevOps", "tools": ["Terraform", "Kubernetes", "ArgoCD"] }
+    ],
+    "experience": [
+      {
+        "company": "KBTG",
+        "position": "DevOps Engineer",
+        "start_date": "2020-08",
+        "end_date": "Present",
+        "description": "Migrated 60 services to EKS. Built the golden-path Terraform modules used org-wide."
+      }
+    ],
+    "experience_total": 5,
+    "current_salary": 98000,
+    "expected_salary": 125000,
+    "education": [
+      { "institution": "KMUTT", "degree": "B.Eng.", "field": "Computer Engineering", "year": "2020" }
+    ],
+    "hr_comment": "",
+    "line_manager_comment": "",
+    "extraction_confidence": 0.88,
+    "raw_text_snippet": "KITTIPONG MEESAP  DevOps Engineer  Bangkok  KBTG 2020-present  Terraform Kubernetes ArgoCD...",
+    "status": "New",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-29T13:15:00Z",
+    "updated_at": "2026-08-29T13:15:00Z"
+  },
+  {
+    "candidate_id": "66666666-6666-6666-6666-666666666666",
+    "full_name": "Achara Wattanasin",
+    "email": "achara.w@example.com",
+    "phone": "0865556677",
+    "location": "Bangkok, Thailand",
+    "applied_position": "Machine Learning Engineer",
+    "summary": "ML engineer with a research background. 7 years shipping recommendation and NLP systems to production, not just notebooks.",
+    "skills": [
+      { "skill": "Python", "tools": ["PyTorch", "scikit-learn", "pandas"] },
+      { "skill": "MLOps", "tools": ["MLflow", "Kubeflow", "BentoML"] },
+      { "skill": "Data Engineering", "tools": ["Spark", "Airflow"] },
+      { "skill": "Cloud", "tools": ["Azure ML", "GCP Vertex AI"] },
+      { "skill": "SQL", "tools": ["BigQuery", "PostgreSQL"] }
+    ],
+    "experience": [
+      {
+        "company": "Ascend Money",
+        "position": "Senior ML Engineer",
+        "start_date": "2023-04",
+        "end_date": "Present",
+        "description": "Owns the fraud-scoring model (recall +12pp). Runs the feature store."
+      },
+      {
+        "company": "Sertis",
+        "position": "ML Engineer",
+        "start_date": "2020-01",
+        "end_date": "2023-03",
+        "description": "Recommendation systems for retail clients. Deployed 8 models to production."
+      },
+      {
+        "company": "NECTEC",
+        "position": "Research Assistant",
+        "start_date": "2019-01",
+        "end_date": "2019-12",
+        "description": "Thai NLP - named-entity recognition, published one paper."
+      }
+    ],
+    "experience_total": 7,
+    "current_salary": 135000,
+    "expected_salary": 170000,
+    "education": [
+      { "institution": "Chulalongkorn University", "degree": "M.Sc.", "field": "Computer Science", "year": "2019" },
+      { "institution": "Chulalongkorn University", "degree": "B.Eng.", "field": "Computer Engineering", "year": "2017" }
+    ],
+    "hr_comment": "Referred by the data team. Fast-track.",
+    "line_manager_comment": "Reviewed portfolio - fraud model work is exactly what we need. Move to interview.",
+    "extraction_confidence": 0.96,
+    "raw_text_snippet": "ACHARA WATTANASIN  Senior ML Engineer  Bangkok  Ascend Money 2023-present  fraud scoring feature store...",
+    "status": "Interview",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-20T10:00:00Z",
+    "updated_at": "2026-08-30T09:40:00Z"
+  },
+  {
+    "candidate_id": "77777777-7777-7777-7777-777777777777",
+    "full_name": "Weerapat Thongchai",
+    "email": "weerapat.thongchai@example.com",
+    "phone": "0801234567",
+    "location": "Khon Kaen, Thailand",
+    "applied_position": "Backend Engineer",
+    "summary": "Backend developer, 3 years in Go and Python. Applied last cycle too.",
+    "skills": [
+      { "skill": "Go", "tools": ["Gin", "gRPC"] },
+      { "skill": "Python", "tools": ["Flask"] },
+      { "skill": "SQL", "tools": ["MySQL"] }
+    ],
+    "experience": [
+      {
+        "company": "Local Software House",
+        "position": "Backend Developer",
+        "start_date": "2022-06",
+        "end_date": "2025-07",
+        "description": "REST APIs for logistics clients. Some Kafka."
+      }
+    ],
+    "experience_total": 3,
+    "current_salary": 55000,
+    "expected_salary": 80000,
+    "education": [
+      { "institution": "Khon Kaen University", "degree": "B.Sc.", "field": "Information Technology", "year": "2022" }
+    ],
+    "hr_comment": "Applied in the previous round, did not pass the take-home. Re-applying.",
+    "line_manager_comment": "Pass for now - salary expectation vs level is off.",
+    "extraction_confidence": 0.72,
+    "raw_text_snippet": "WEERAPAT THONGCHAI  Backend Developer  Khon Kaen  Go Python  Local Software House 2022-2025...",
+    "status": "CV rejected",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-18T11:30:00Z",
+    "updated_at": "2026-08-22T15:00:00Z"
+  },
+  {
+    "candidate_id": "88888888-8888-8888-8888-888888888888",
+    "full_name": "Ratana Phongsuwan",
+    "email": "ratana.phongsuwan@example.com",
+    "phone": "0888776655",
+    "location": "Bangkok, Thailand",
+    "applied_position": "Frontend Engineer",
+    "summary": "Frontend engineer, 6 years. Design-system owner. Cares about performance budgets and DX.",
+    "skills": [
+      { "skill": "JavaScript", "tools": ["React", "TypeScript", "Next.js"] },
+      { "skill": "Testing", "tools": ["Playwright", "Vitest"] },
+      { "skill": "CSS", "tools": ["Tailwind CSS", "Radix UI", "shadcn/ui"] }
+    ],
+    "experience": [
+      {
+        "company": "Agoda",
+        "position": "Senior Frontend Engineer",
+        "start_date": "2021-09",
+        "end_date": "Present",
+        "description": "Owns the shared component library (150+ components) used by 40 teams."
+      },
+      {
+        "company": "Builk One Group",
+        "position": "Frontend Engineer",
+        "start_date": "2019-03",
+        "end_date": "2021-08",
+        "description": "Rebuilt the construction-cost dashboard in React."
+      }
+    ],
+    "experience_total": 6,
+    "current_salary": 105000,
+    "expected_salary": 130000,
+    "education": [
+      { "institution": "Thammasat University", "degree": "B.Sc.", "field": "Computer Science", "year": "2019" }
+    ],
+    "hr_comment": "Great culture fit in the screen. Waiting on the panel slot.",
+    "line_manager_comment": "Portfolio review passed. Schedule the system-design round.",
+    "extraction_confidence": 0.93,
+    "raw_text_snippet": "RATANA PHONGSUWAN  Senior Frontend Engineer  Bangkok  Agoda 2021-present  design system 150 components...",
+    "status": "CV passed",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-08-21T09:00:00Z",
+    "updated_at": "2026-08-28T17:45:00Z"
+  },
+  {
+    "candidate_id": "99999999-9999-9999-9999-999999999999",
+    "full_name": "Chaiwat Ittipol",
+    "email": "chaiwat.ittipol@example.com",
+    "phone": "0844332211",
+    "location": "Bangkok, Thailand",
+    "applied_position": "Data Engineer",
+    "summary": "Hired last month - kept here as an example of the 'Hired' state so the dashboard can render the full status range.",
+    "skills": [
+      { "skill": "Data Engineering", "tools": ["Airflow", "dbt"] },
+      { "skill": "SQL", "tools": ["BigQuery"] }
+    ],
+    "experience": [
+      {
+        "company": "True Digital",
+        "position": "Data Engineer",
+        "start_date": "2020-05",
+        "end_date": "2026-07",
+        "description": "Built the customer 360 pipeline."
+      }
+    ],
+    "experience_total": 6,
+    "current_salary": 90000,
+    "expected_salary": 115000,
+    "education": [
+      { "institution": "Mahidol University", "degree": "B.Sc.", "field": "Data Science", "year": "2020" }
+    ],
+    "hr_comment": "Offer accepted 5 Aug. Start date 1 Sep.",
+    "line_manager_comment": "Strong hire. Onboarding scheduled.",
+    "extraction_confidence": 0.9,
+    "raw_text_snippet": "CHAIWAT ITTIPOL  Data Engineer  Bangkok  True Digital 2020-2026  customer 360 pipeline...",
+    "status": "Hired",
+    "resume_url": "",
+    "resume_filename": "",
+    "created_at": "2026-07-15T10:00:00Z",
+    "updated_at": "2026-08-05T14:00:00Z"
+  }
+]
