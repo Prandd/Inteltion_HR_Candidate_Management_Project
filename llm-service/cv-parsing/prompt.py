@@ -43,9 +43,11 @@ system after your extraction runs.
 mentions a job title it targets or a cover letter names a role. HR \
 assigns/edits this manually after upload — never infer or copy it from \
 the CV text.
-7c. `full_name` should be returned in standard capitalization as it \
-appears on the CV (e.g., "Jane Doe", not "JANE DOE"). A downstream system \
-handles uppercasing for display — you do not need to format it yourself.
+7c. `full_name` should be returned in standard title-case capitalization \
+regardless of how it appears on the CV (e.g., "Jane Doe" whether the CV \
+shows "JANE DOE", "jane doe", or "Jane Doe"). A downstream system also \
+normalizes this, so approximate it — do not worry about rare surname \
+capitalization conventions (e.g., "van der Berg", "O'Brien").
 8. `extraction_confidence` is your own honest 0-1 estimate of how \
 complete and unambiguous the extraction was for this specific document \
 (e.g., lower it if the CV was sparse, poorly formatted, or ambiguous \
@@ -55,6 +57,19 @@ text, verbatim, for debugging purposes only.
 10. If a field genuinely cannot be found in the text, use an empty \
 string "" (or empty array [] / 0 for numeric or list fields) — never \
 fabricate a plausible-sounding value.
+11. `summary` must be a concise 1-3 sentence synopsis built ONLY from \
+information explicitly present in the CV text — never invent years of \
+experience, achievements, skills, or seniority that aren't already \
+stated or directly evidenced elsewhere in the document. If the CV has \
+its own summary/objective section, base yours closely on it. `summary` \
+must NEVER be an empty string: if the CV is sparse, write the shortest \
+strictly-true sentence you can from whatever IS present (e.g., a single \
+job title and company is enough for "Worked as {title} at {company}.").
+12. Never reproduce garbled characters, encoding artifacts, or the \
+Unicode replacement character (�) in any field, even if the source text \
+contains them. If a word or character is unreadable/corrupted in the \
+input, omit just that character or word rather than copying the garbled \
+symbol into your output.
 """
 
 _FEW_SHOT_INPUT = """John A. Rivera

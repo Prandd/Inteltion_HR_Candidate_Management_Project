@@ -12,6 +12,8 @@ from __future__ import annotations
 import io
 from typing import Optional
 
+from text_utils import sanitize_text
+
 
 class UnsupportedFileTypeError(ValueError):
     """Raised when the file is neither a PDF nor a DOCX (by content or name)."""
@@ -73,10 +75,18 @@ def _extract_pdf_text(file_bytes: bytes) -> str:
     except Exception as e:
         raise TextExtractionError(f"Failed to parse PDF: {e}") from e
 
+    # Sanitize BEFORE the emptiness check: PDFs with broken/subset font
+    # tables make pypdf emit '\ufffd' (Unicode replacement character) for
+    # glyphs it can't map. If a "page" turns out to be nothing but that
+    # character, it should correctly be treated as no extractable text
+    # rather than silently forwarding garbage into the LLM prompt.
+    text = sanitize_text(text)
+
     if not text:
         raise TextExtractionError(
             "PDF parsed successfully but contained no extractable text "
-            "(likely a scanned/image-only PDF with no text layer)."
+            "(likely a scanned/image-only PDF with no text layer, or a "
+            "font encoding pypdf could not map to real characters)."
         )
     return text
 
@@ -104,6 +114,8 @@ def _extract_docx_text(file_bytes: bytes) -> str:
         text = "\n".join(parts).strip()
     except Exception as e:
         raise TextExtractionError(f"Failed to parse DOCX: {e}") from e
+
+    text = sanitize_text(text)
 
     if not text:
         raise TextExtractionError("DOCX parsed successfully but contained no text.")

@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from text_utils import sanitize_candidate_strings, titlecase_name
 
 
 class Skill(BaseModel):
@@ -93,23 +95,28 @@ class CandidateExtraction(BaseModel):
     extraction_confidence: float = 0.5
     raw_text_snippet: str = ""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _sanitize_incoming_strings(cls, data):
+        """Runs before any field-level validation. Strips mojibake and the
+        Unicode replacement character ('\ufffd') out of EVERY string in the
+        payload — including nested skills/experience/education entries, not
+        just top-level fields. This is the single fix point for garbled
+        characters, regardless of whether they came from a PDF with a
+        broken font encoding or an LLM echoing back garbled input text."""
+        if isinstance(data, dict):
+            return sanitize_candidate_strings(data)
+        return data
+
     @field_validator("full_name", mode="after")
     @classmethod
     def _titlecase_full_name(cls, v: str) -> str:
-        # HR dashboard convention: full_name is always stored/displayed in
-        # capital letters. Titlecasing here (rather than only in the UI)
-        # means every consumer of this schema gets it consistently, and
-        # it's still trivially inline-editable by HR afterward.
-        return v.title() if v else v
-    
-    @field_validator("email", mode="after")
-    @classmethod
-    def _lowercase_email_address(cls, v: str) -> str:
-        # HR dashboard convention: email is always stored/displayed in
-        # lowercase. Lowercasing here (rather than only in the UI)
-        # means every consumer of this schema gets it consistently, and
-        # it's still trivially inline-editable by HR afterward.
-        return v.lower() if v else v
+        # Normalizes name casing regardless of how the LLM formatted it
+        # ("JOHN SMITH", "john smith", "JOHN smith"), while respecting
+        # surname particles ("van", "de", "bin"...), apostrophes, and
+        # hyphens (see text_utils.titlecase_name). Still trivially
+        # inline-editable by HR afterward if it ever needs a manual fix.
+        return titlecase_name(v) if v else v
 
     @field_validator("current_salary", "expected_salary", "experience_total", mode="before")
     @classmethod
