@@ -1,24 +1,52 @@
 import os
+import sys
 import uuid
 
 from datetime import datetime, timezone
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    HTTPException,
-    UploadFile
-)
 
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 
+
+# ==================================================
+# Import LLM CV Extractor
+# ==================================================
+
+LLM_SERVICE_PATH = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "../../../llm-service/cv-parsing"
+    )
+)
+
+
+if LLM_SERVICE_PATH not in sys.path:
+    sys.path.append(
+        LLM_SERVICE_PATH
+    )
+
+
+try:
+
+    from extractor import extract_candidate
+
+except Exception as e:
+
+    raise ImportError(
+        f"Cannot import CV extractor from {LLM_SERVICE_PATH}: {e}"
+    )
+
+
+
+# ==================================================
+# Backend imports
+# ==================================================
+
 from ..config import settings
 from ..database import get_db
-from ..extraction import extract_candidate
 from ..models_db import Candidate
-
 
 from ..schemas import (
     STATUS_VALUES,
@@ -27,7 +55,6 @@ from ..schemas import (
     CandidateSummary,
     CandidateUpdate,
 )
-
 
 from ..storage import storage
 
