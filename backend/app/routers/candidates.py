@@ -4,10 +4,15 @@ import uuid
 
 from datetime import datetime, timezone
 
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+)
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-
 
 
 # ==================================================
@@ -23,14 +28,13 @@ LLM_SERVICE_PATH = os.path.abspath(
 
 
 if LLM_SERVICE_PATH not in sys.path:
-    sys.path.append(
-        LLM_SERVICE_PATH
-    )
+    sys.path.append(LLM_SERVICE_PATH)
 
 
 try:
 
     from extractor import extract_candidate
+
 
 except Exception as e:
 
@@ -60,13 +64,9 @@ from ..storage import storage
 
 
 
-
-
 router = APIRouter(
     tags=["candidates"]
 )
-
-
 
 
 
@@ -76,26 +76,18 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-
 _STATUS_SET = set(
     STATUS_VALUES
 )
 
 
 
-
-
-
-
-
-
-# =========================
+# ==================================================
 # FORMAT RESPONSE
-# =========================
+# ==================================================
 
 
 def _to_out(row: Candidate):
-
 
     data = (
         CandidateOut
@@ -104,12 +96,9 @@ def _to_out(row: Candidate):
     )
 
 
-
-    for key,value in data.items():
-
+    for key, value in data.items():
 
         if value is None:
-
 
             if key in [
                 "skills",
@@ -119,11 +108,9 @@ def _to_out(row: Candidate):
 
                 data[key] = []
 
-
             else:
 
                 data[key] = "-"
-
 
 
     return data
@@ -133,28 +120,19 @@ def _to_out(row: Candidate):
 
 
 
-
-
-
-
 def _to_summary(row: Candidate):
-
 
     return CandidateSummary(
 
-
         candidate_id=row.candidate_id,
-
 
         full_name=
             row.full_name
             or "Unknown Candidate",
 
-
         applied_position=
             row.applied_position
             or "-",
-
 
 
         location=
@@ -162,11 +140,9 @@ def _to_summary(row: Candidate):
             or "-",
 
 
-
         email=
             row.email
             or "-",
-
 
 
         phone=
@@ -174,11 +150,9 @@ def _to_summary(row: Candidate):
             or "-",
 
 
-
         experience_total=
             row.experience_total
             or 0,
-
 
 
         status=
@@ -186,15 +160,13 @@ def _to_summary(row: Candidate):
             or "New",
 
 
-
         top_skills=[
 
-            s.get("skill","")
+            s.get("skill", "")
 
             for s in (row.skills or [])
 
         ][:5],
-
 
 
         extraction_confidence=
@@ -202,9 +174,7 @@ def _to_summary(row: Candidate):
             or 0,
 
 
-
         created_at=row.created_at
-
 
     ).model_dump(mode="json")
 
@@ -212,22 +182,17 @@ def _to_summary(row: Candidate):
 
 
 
-
-
-
-
-# =========================
+# ==================================================
 # GET ALL
-# =========================
+# ==================================================
 
 
 @router.get("/candidates")
 def list_candidates(
 
-    db:Session = Depends(get_db)
+    db: Session = Depends(get_db)
 
 ):
-
 
     rows = (
 
@@ -242,11 +207,9 @@ def list_candidates(
     )
 
 
-
     return {
 
-
-        "data":[
+        "data": [
 
             _to_summary(row)
 
@@ -254,9 +217,7 @@ def list_candidates(
 
         ],
 
-
-        "error":None
-
+        "error": None
 
     }
 
@@ -264,24 +225,19 @@ def list_candidates(
 
 
 
-
-
-
-
-# =========================
+# ==================================================
 # GET ONE
-# =========================
+# ==================================================
 
 
 @router.get("/candidates/{candidate_id}")
 def get_candidate(
 
-    candidate_id:str,
+    candidate_id: str,
 
-    db:Session = Depends(get_db)
+    db: Session = Depends(get_db)
 
 ):
-
 
     row = db.get(
 
@@ -292,9 +248,7 @@ def get_candidate(
     )
 
 
-
     if row is None:
-
 
         raise HTTPException(
 
@@ -305,17 +259,13 @@ def get_candidate(
         )
 
 
-
     return {
-
 
         "data":
 
             _to_out(row),
 
-
-        "error":None
-
+        "error": None
 
     }
 
@@ -323,30 +273,21 @@ def get_candidate(
 
 
 
-
-
-
-
-# =========================
+# ==================================================
 # UPDATE
-# =========================
+# ==================================================
 
 
 @router.put("/candidates/{candidate_id}")
 def update_candidate(
 
+    candidate_id: str,
 
-    candidate_id:str,
+    payload: CandidateUpdate,
 
-
-    payload:CandidateUpdate,
-
-
-    db:Session = Depends(get_db)
-
+    db: Session = Depends(get_db)
 
 ):
-
 
     row = db.get(
 
@@ -357,9 +298,7 @@ def update_candidate(
     )
 
 
-
     if row is None:
-
 
         raise HTTPException(
 
@@ -368,8 +307,6 @@ def update_candidate(
             detail="Candidate not found"
 
         )
-
-
 
 
     data = payload.model_dump(
@@ -381,16 +318,9 @@ def update_candidate(
     )
 
 
-
-
-
-
-
     if "email" in data:
 
-
         if data["email"] and "@" not in data["email"]:
-
 
             raise HTTPException(
 
@@ -402,15 +332,9 @@ def update_candidate(
 
 
 
-
-
-
-
     if "status" in data:
 
-
         if data["status"] not in _STATUS_SET:
-
 
             raise HTTPException(
 
@@ -421,98 +345,50 @@ def update_candidate(
             )
 
 
-
-
-
-
-
-
-
-    # IMPORTANT
-    # update only sent values
-    # don't overwrite with null
-
-
-    for key,value in data.items():
-
+    for key, value in data.items():
 
         if value is not None:
 
-
             setattr(
-
                 row,
-
                 key,
-
                 value
-
             )
 
 
-
-
-
-
-
-
-
     row.updated_at = datetime.now(
-
         timezone.utc
-
     )
-
 
 
     db.commit()
 
-
     db.refresh(row)
 
 
-
-
     return {
-
 
         "data":
 
             _to_out(row),
 
-
-        "error":None
-
+        "error": None
 
     }
-
-
-
-
-
-
-
-
-
-
-
-# =========================
+    
+# ==================================================
 # RESUME URL
-# =========================
+# ==================================================
 
 
 @router.get("/candidates/{candidate_id}/resume-url")
 def get_resume_url(
 
+    candidate_id: str,
 
-    candidate_id:str,
-
-
-    db:Session = Depends(get_db)
-
+    db: Session = Depends(get_db)
 
 ):
-
 
     row = db.get(
 
@@ -523,9 +399,7 @@ def get_resume_url(
     )
 
 
-
     if row is None:
-
 
         raise HTTPException(
 
@@ -536,13 +410,9 @@ def get_resume_url(
         )
 
 
-
-
     return {
 
-
-        "data":{
-
+        "data": {
 
             "resume_url":
 
@@ -553,12 +423,9 @@ def get_resume_url(
 
                 row.resume_filename
 
-
         },
 
-
-        "error":None
-
+        "error": None
 
     }
 
@@ -566,32 +433,27 @@ def get_resume_url(
 
 
 
-
-
-
-
-# =========================
+# ==================================================
 # UPLOAD
-# =========================
+# ==================================================
 
 
 @router.post(
     "/candidates/upload",
     status_code=201
 )
-
 async def upload_candidate(
 
+    file: UploadFile = File(...),
 
-    file:UploadFile = File(...),
-
-
-    db:Session = Depends(get_db)
-
+    db: Session = Depends(get_db)
 
 ):
 
 
+    # -------------------------------
+    # Validate extension
+    # -------------------------------
 
     ext = os.path.splitext(
 
@@ -601,11 +463,7 @@ async def upload_candidate(
 
 
 
-
-
-
     if ext not in ALLOWED_EXTENSIONS:
-
 
         raise HTTPException(
 
@@ -617,18 +475,15 @@ async def upload_candidate(
 
 
 
-
-
-
+    # -------------------------------
+    # Read file
+    # -------------------------------
 
     content = await file.read()
 
 
 
-
-
     if not content:
-
 
         raise HTTPException(
 
@@ -640,11 +495,7 @@ async def upload_candidate(
 
 
 
-
-
-
     if len(content) > settings.max_upload_mb * 1024 * 1024:
-
 
         raise HTTPException(
 
@@ -658,8 +509,9 @@ async def upload_candidate(
 
 
 
-
-
+    # -------------------------------
+    # Create candidate id
+    # -------------------------------
 
     candidate_id = str(
 
@@ -671,6 +523,9 @@ async def upload_candidate(
 
 
 
+    # -------------------------------
+    # Save resume
+    # -------------------------------
 
     stored = storage.save(
 
@@ -686,7 +541,9 @@ async def upload_candidate(
 
 
 
-
+    # -------------------------------
+    # Extract CV
+    # -------------------------------
 
     raw = extract_candidate(
 
@@ -700,7 +557,109 @@ async def upload_candidate(
 
 
 
+    print("==============================")
 
+    print("EXTRACT RESULT")
+
+    print(raw)
+
+    print("==============================")
+
+
+
+
+
+    # -------------------------------
+    # Normalize extractor output
+    # -------------------------------
+
+    if not isinstance(raw, dict):
+
+        raw = {}
+
+
+
+    # name -> full_name
+
+    if not raw.get("full_name"):
+
+
+        if raw.get("name"):
+
+            raw["full_name"] = raw["name"]
+
+
+
+        elif raw.get("candidate_name"):
+
+            raw["full_name"] = raw["candidate_name"]
+
+
+
+
+
+    # default values
+
+    raw.setdefault(
+        "full_name",
+        ""
+    )
+
+
+    raw.setdefault(
+        "email",
+        ""
+    )
+
+
+    raw.setdefault(
+        "phone",
+        ""
+    )
+
+
+    raw.setdefault(
+        "location",
+        ""
+    )
+
+
+    raw.setdefault(
+        "applied_position",
+        ""
+    )
+
+
+    raw.setdefault(
+        "summary",
+        ""
+    )
+
+
+    raw.setdefault(
+        "skills",
+        []
+    )
+
+
+    raw.setdefault(
+        "experience",
+        []
+    )
+
+
+    raw.setdefault(
+        "education",
+        []
+    )
+
+
+
+
+
+    # -------------------------------
+    # Validate schema
+    # -------------------------------
 
     fields = (
 
@@ -716,12 +675,11 @@ async def upload_candidate(
 
 
 
-
-
-
+    # -------------------------------
+    # Save database
+    # -------------------------------
 
     row = Candidate(
-
 
         candidate_id=candidate_id,
 
@@ -734,10 +692,7 @@ async def upload_candidate(
 
         **fields
 
-
     )
-
-
 
 
 
@@ -755,17 +710,13 @@ async def upload_candidate(
 
 
 
-
-
     return {
-
 
         "data":
 
             _to_out(row),
 
 
-        "error":None
-
+        "error": None
 
     }
