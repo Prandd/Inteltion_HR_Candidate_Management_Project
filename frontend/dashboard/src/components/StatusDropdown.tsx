@@ -1,16 +1,26 @@
-import { useState } from "react";
+import {
+    useState
+} from "react";
+
+
 import api from "../api/axios";
+
+
 
 
 interface Props {
 
-    candidateId: string;
+    candidateId:string;
 
-    currentStatus: string;
+    currentStatus:string;
 
-    onUpdate?: () => void;
+    onUpdate?:()=>void;
 
 }
+
+
+
+
 
 
 
@@ -22,17 +32,45 @@ function StatusDropdown({
 
     onUpdate
 
-}: Props){
+}:Props){
 
 
 
-    const [status,setStatus] =
-        useState(currentStatus);
+    const [
+
+        status,
+
+        setStatus
+
+    ] = useState(currentStatus);
 
 
 
-    const [loading,setLoading] =
-        useState(false);
+
+
+    const [
+
+        loading,
+
+        setLoading
+
+    ] = useState(false);
+
+
+
+
+
+    const [
+
+        open,
+
+        setOpen
+
+    ] = useState(false);
+
+
+
+
 
 
 
@@ -42,13 +80,9 @@ function StatusDropdown({
 
         "New",
 
-        "Review",
-
         "Assessment",
 
         "Interview",
-
-        "CV passed",
 
         "Hired",
 
@@ -63,8 +97,113 @@ function StatusDropdown({
 
 
 
+
+
+
+    function statusStyle(value:string){
+
+
+        switch(value){
+
+
+            case "Assessment":
+
+                return {
+
+                    badge:
+                    "bg-orange-50 text-orange-600",
+
+                    dot:
+                    "bg-orange-500"
+
+                };
+
+
+
+            case "Interview":
+
+                return {
+
+                    badge:
+                    "bg-purple-50 text-purple-600",
+
+                    dot:
+                    "bg-purple-500"
+
+                };
+
+
+
+            case "Hired":
+
+                return {
+
+                    badge:
+                    "bg-green-50 text-green-600",
+
+                    dot:
+                    "bg-green-500"
+
+                };
+
+
+
+            case "Rejected":
+
+                return {
+
+                    badge:
+                    "bg-red-50 text-red-600",
+
+                    dot:
+                    "bg-red-500"
+
+                };
+
+
+
+            case "Needs information":
+
+                return {
+
+                    badge:
+                    "bg-gray-100 text-gray-600",
+
+                    dot:
+                    "bg-gray-400"
+
+                };
+
+
+
+            default:
+
+                return {
+
+                    badge:
+                    "bg-blue-50 text-blue-600",
+
+                    dot:
+                    "bg-blue-500"
+
+                };
+
+
+        }
+
+
+    }
+
+
+
+
+
+
+
     async function updateStatus(
+
         value:string
+
     ){
 
 
@@ -74,8 +213,12 @@ function StatusDropdown({
             setLoading(true);
 
 
-
             setStatus(value);
+
+
+            setOpen(false);
+
+
 
 
 
@@ -93,10 +236,6 @@ function StatusDropdown({
 
 
 
-            console.log(
-                "Status updated:",
-                value
-            );
 
 
 
@@ -109,24 +248,20 @@ function StatusDropdown({
 
 
         }
+
+
         catch(error){
 
 
-            console.error(
-                error
-            );
+            console.error(error);
 
 
-            alert(
-                "Update status failed"
-            );
-
-            setStatus(
-                currentStatus
-            );
+            setStatus(currentStatus);
 
 
         }
+
+
         finally{
 
 
@@ -142,53 +277,198 @@ function StatusDropdown({
 
 
 
+
+
+
+
+    const current = statusStyle(status);
+
+
+
+
+
+
+
+
     return (
 
 
-        <div>
 
+        <div
 
-            <label
-                className="
-                block
-                font-bold
-                mb-2
-                "
-            >
+            className="
 
-                Status
+            relative
 
-            </label>
+            "
+
+        >
 
 
 
 
-            <select
 
 
-                value={status}
+
+
+            {/* STATUS BUTTON */}
+
+
+
+            <button
 
 
                 disabled={loading}
 
 
-                onChange={
-                    e =>
-                    updateStatus(
-                        e.target.value
-                    )
+                onClick={
+
+                    ()=>setOpen(!open)
+
                 }
+
+
+                className={`
+
+                flex
+
+                items-center
+
+                gap-2
+
+                px-4
+
+                py-2
+
+                rounded-xl
+
+                text-sm
+
+                font-semibold
+
+                transition
+
+                hover:shadow-sm
+
+                ${
+
+                    current.badge
+
+                }
+
+                `}
+
+
+            >
+
+
+
+                <span
+
+
+                    className={`
+
+                    w-2
+
+                    h-2
+
+                    rounded-full
+
+                    ${
+
+                        current.dot
+
+                    }
+
+                    `}
+
+
+                />
+
+
+
+
+                {
+
+                loading
+
+                ?
+
+                "Updating..."
+
+                :
+
+                status
+
+                }
+
+
+
+
+                <span
+
+                    className="
+
+                    text-xs
+
+                    opacity-60
+
+                    "
+
+                >
+
+                    ▾
+
+                </span>
+
+
+
+
+            </button>
+
+
+
+
+
+
+
+
+
+            {/* MENU */}
+
+
+
+            {
+
+            open &&
+
+
+            <div
 
 
                 className="
 
+                absolute
+
+                right-0
+
+                mt-2
+
+                w-52
+
+                bg-white
+
                 border
 
-                rounded-lg
+                border-gray-200
 
-                px-3
+                rounded-xl
 
-                py-2
+                shadow-lg
+
+                p-2
+
+                z-50
 
                 "
 
@@ -196,30 +476,128 @@ function StatusDropdown({
 
 
 
+
+
                 {
-                    statuses.map(
-                        s => (
 
-                            <option
+                statuses.map(item=>{
 
-                                key={s}
 
-                                value={s}
+                    const style = statusStyle(item);
 
-                            >
 
-                                {s}
 
-                            </option>
+                    return (
 
-                        )
 
-                    )
+
+                    <button
+
+
+                        key={item}
+
+
+                        onClick={
+
+                            ()=>updateStatus(item)
+
+                        }
+
+
+
+                        className={`
+
+                        w-full
+
+                        flex
+
+                        items-center
+
+                        gap-3
+
+                        px-3
+
+                        py-2.5
+
+                        rounded-lg
+
+                        text-sm
+
+                        transition
+
+                        hover:bg-gray-50
+
+
+                        ${
+
+                        item===status
+
+                        ?
+
+                        "bg-gray-50 font-semibold"
+
+                        :
+
+                        "text-gray-700"
+
+                        }
+
+
+                        `}
+
+
+                    >
+
+
+
+                        <span
+
+
+                            className={`
+
+                            w-2
+
+                            h-2
+
+                            rounded-full
+
+                            ${
+
+                                style.dot
+
+                            }
+
+                            `}
+
+
+                        />
+
+
+
+
+
+                        {item}
+
+
+
+
+
+                    </button>
+
+
+                    );
+
+
+                })
+
                 }
 
 
 
-            </select>
+            </div>
+
+
+            }
 
 
 
@@ -230,6 +608,8 @@ function StatusDropdown({
 
 
 }
+
+
 
 
 

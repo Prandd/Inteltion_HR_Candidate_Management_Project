@@ -4,12 +4,19 @@ import {
 } from "react";
 
 
+import {
+    useNavigate
+} from "react-router-dom";
+
+
 import api from "../api/axios";
 
 
-import CandidateCard from "../components/CandidateCard";
-import StatCard from "../components/StatCard";
-import RequisitionCard from "../components/RequisitionCard";
+import PipelineStatCard from "../components/PipelineStatCard";
+
+import PipelineColumn from "../components/PipelineColumn";
+
+import PipelineCandidateCard from "../components/PipelineCandidateCard";
 
 
 import type {
@@ -21,6 +28,11 @@ import type {
 
 
 function Dashboard(){
+
+
+    const navigate = useNavigate();
+
+
 
 
 
@@ -39,9 +51,71 @@ function Dashboard(){
 
 
     const [
-        error,
-        setError
+        search,
+        setSearch
     ] = useState("");
+
+
+
+    const [
+        status,
+        setStatus
+    ] = useState("All");
+
+
+
+    const [
+        experience,
+        setExperience
+    ] = useState("All");
+
+
+
+    const [
+        position,
+        setPosition
+    ] = useState("All");
+
+
+
+    const [
+        view,
+        setView
+    ] = useState<"board"|"table">("board");
+
+
+
+
+
+
+    const columns = [
+
+        {
+            name:"New",
+            color:"blue" as const
+        },
+
+        {
+            name:"Assessment",
+            color:"orange" as const
+        },
+
+        {
+            name:"Interview",
+            color:"purple" as const
+        },
+
+        {
+            name:"Hired",
+            color:"green" as const
+        },
+
+        {
+            name:"Rejected",
+            color:"red" as const
+        }
+
+    ];
 
 
 
@@ -51,11 +125,9 @@ function Dashboard(){
 
     useEffect(()=>{
 
-
         fetchCandidates();
 
-
-    }, []);
+    },[]);
 
 
 
@@ -70,12 +142,6 @@ function Dashboard(){
         try{
 
 
-            setLoading(true);
-
-            setError("");
-
-
-
             const response =
                 await api.get(
                     "/candidates"
@@ -83,44 +149,216 @@ function Dashboard(){
 
 
 
-            console.log(
-                "Candidates:",
-                response.data.data
-            );
-
-
-
             setCandidates(
-                response.data.data || []
-            );
 
+                Array.isArray(response.data.data)
 
+                ?
 
-        }
-        catch(err){
+                response.data.data
 
+                :
 
-            console.error(
-                err
-            );
+                []
 
-
-            setError(
-                "Cannot load candidates"
             );
 
 
         }
+
+        catch(error){
+
+            console.error(error);
+
+        }
+
+
         finally{
 
-
             setLoading(false);
-
 
         }
 
 
     }
+
+
+
+
+
+
+
+
+
+    function getCandidates(status:string){
+
+
+        return candidates.filter(
+
+            candidate=>
+
+            (
+
+                candidate.status || "New"
+
+            )
+
+            ===
+
+            status
+
+        );
+
+
+    }
+
+
+
+
+
+
+
+
+
+    const filteredCandidates =
+
+        candidates.filter(candidate=>{
+
+
+            const keyword =
+                search.toLowerCase();
+
+
+
+            const matchSearch =
+
+
+                keyword === ""
+
+                ||
+
+                candidate.full_name
+                ?.toLowerCase()
+                .includes(keyword)
+
+                ||
+
+                candidate.email
+                ?.toLowerCase()
+                .includes(keyword);
+
+
+
+            const matchStatus =
+
+
+                status==="All"
+
+                ||
+
+                candidate.status===status;
+
+
+
+            const years =
+                candidate.experience_total ?? 0;
+
+
+
+            const matchExperience =
+
+
+                experience==="All"
+
+                ||
+
+                (
+                    experience==="0-2"
+                    &&
+                    years<=2
+                )
+
+                ||
+
+                (
+                    experience==="3-5"
+                    &&
+                    years>=3
+                    &&
+                    years<=5
+                )
+
+                ||
+
+                (
+                    experience==="5+"
+                    &&
+                    years>5
+                );
+
+
+
+            const matchPosition =
+
+
+                position==="All"
+
+                ||
+
+                candidate.applied_position===position;
+
+
+
+            return (
+
+                matchSearch
+
+                &&
+
+                matchStatus
+
+                &&
+
+                matchExperience
+
+                &&
+
+                matchPosition
+
+            );
+
+
+        });
+
+
+
+
+
+
+
+
+    const positions = [
+
+        "All",
+
+        ...
+
+        Array.from(
+
+            new Set(
+
+                candidates.map(
+
+                    c=>c.applied_position
+
+                )
+
+            )
+
+        )
+
+    ];
+
 
 
 
@@ -131,37 +369,11 @@ function Dashboard(){
 
     if(loading){
 
-
         return (
 
             <div className="p-10">
 
-                Loading candidates...
-
-            </div>
-
-        );
-
-    }
-
-
-
-
-
-
-    if(error){
-
-
-        return (
-
-            <div
-                className="
-                p-10
-                text-red-600
-                "
-            >
-
-                {error}
+                Loading dashboard...
 
             </div>
 
@@ -179,45 +391,80 @@ function Dashboard(){
 
     return (
 
+
         <div
+
             className="
-            p-8
-            pt-10
+            min-h-screen
+            bg-[#f5f7ff]
+            p-6
             "
+
         >
 
 
-            {/* Dashboard Header */}
+
+
+
 
             <div
+
                 className="
-                mb-10
+                flex
+                justify-between
+                mb-6
                 "
+
             >
 
 
-                <h1
-                    className="
-                    text-3xl
+
+                <div>
+
+                    <h1 className="
+                    text-2xl
                     font-bold
-                    "
-                >
+                    text-gray-900
+                    ">
 
-                    Dashboard
+                        Dashboard
 
-                </h1>
+                    </h1>
 
 
-
-                <p
-                    className="
+                    <p className="
+                    text-sm
                     text-gray-500
+                    ">
+
+                        Manage your recruitment pipeline
+
+                    </p>
+
+
+                </div>
+
+
+
+
+                <button
+
+                    onClick={()=>navigate("/upload")}
+
+                    className="
+                    bg-blue-600
+                    text-white
+                    px-5
+                    py-2
+                    rounded-xl
                     "
+
                 >
 
-                    Manage your recruitment pipeline
+                    + Upload CV
 
-                </p>
+                </button>
+
 
 
             </div>
@@ -230,49 +477,264 @@ function Dashboard(){
 
 
 
-            {/* Statistics */}
-
-
             <div
+
                 className="
                 grid
-                grid-cols-1
-                md:grid-cols-3
-                gap-8
-                mb-10
+                grid-cols-6
+                gap-4
+                mb-6
                 "
+
             >
 
 
-                <StatCard
+                <PipelineStatCard
+                    title="All Candidates"
+                    value={candidates.length}
+                    color="blue"
+                    icon="👥"
+                />
 
-                    title="Active Candidates"
 
-                    value={
-                        candidates.length
+                <PipelineStatCard
+                    title="New"
+                    value={getCandidates("New").length}
+                    color="blue"
+                    icon="＋"
+                />
+
+
+                <PipelineStatCard
+                    title="Assessment"
+                    value={getCandidates("Assessment").length}
+                    color="orange"
+                    icon="📝"
+                />
+
+
+                <PipelineStatCard
+                    title="Interview"
+                    value={getCandidates("Interview").length}
+                    color="purple"
+                    icon="💬"
+                />
+
+
+                <PipelineStatCard
+                    title="Hired"
+                    value={getCandidates("Hired").length}
+                    color="green"
+                    icon="✓"
+                />
+
+
+                <PipelineStatCard
+                    title="Failed"
+                    value={getCandidates("Rejected").length}
+                    color="red"
+                    icon="×"
+                />
+
+
+            </div>
+
+
+
+
+
+
+
+
+
+            <div
+
+                className="
+                bg-white
+                border
+                rounded-2xl
+                p-5
+                mb-6
+                "
+
+            >
+
+
+                <input
+
+                    value={search}
+
+                    onChange={
+                        e=>setSearch(e.target.value)
                     }
 
-                />
+                    placeholder="
+                    Search candidate name, email, skill...
+                    "
 
-
-
-                <StatCard
-
-                    title="Avg. Time To Hire"
-
-                    value="24 Days"
-
-                />
-
-
-
-                <StatCard
-
-                    title="Open Positions"
-
-                    value="8"
+                    className="
+                    w-full
+                    border
+                    rounded-xl
+                    px-4
+                    py-3
+                    mb-4
+                    "
 
                 />
+
+
+
+                <div className="
+                flex
+                gap-3
+                ">
+
+
+                    <select
+
+                        value={status}
+
+                        onChange={
+                            e=>setStatus(e.target.value)
+                        }
+
+                        className="
+                        border
+                        rounded-lg
+                        px-3
+                        py-2
+                        "
+
+                    >
+
+                        <option>All</option>
+                        <option>New</option>
+                        <option>Assessment</option>
+                        <option>Interview</option>
+                        <option>Hired</option>
+                        <option>Rejected</option>
+
+                    </select>
+
+
+
+
+
+                    <select
+
+                        value={experience}
+
+                        onChange={
+                            e=>setExperience(e.target.value)
+                        }
+
+                        className="
+                        border
+                        rounded-lg
+                        px-3
+                        py-2
+                        "
+
+                    >
+
+                        <option>All</option>
+                        <option>0-2</option>
+                        <option>3-5</option>
+                        <option>5+</option>
+
+
+                    </select>
+
+
+
+
+
+
+                    <select
+
+                        value={position}
+
+                        onChange={
+                            e=>setPosition(e.target.value)
+                        }
+
+                        className="
+                        border
+                        rounded-lg
+                        px-3
+                        py-2
+                        "
+
+                    >
+
+                        {
+                            positions.map(pos=>(
+
+                                <option key={pos}>
+                                    {pos==="All"
+                                    ?
+                                    "All Positions"
+                                    :
+                                    pos}
+                                </option>
+
+                            ))
+                        }
+
+                    </select>
+
+
+
+
+
+                    <div className="ml-auto flex gap-2">
+
+
+                        <button
+
+                            onClick={()=>setView("board")}
+
+                            className="
+                            bg-blue-600
+                            text-white
+                            px-4
+                            py-2
+                            rounded-lg
+                            "
+
+                        >
+
+                            Board
+
+                        </button>
+
+
+
+                        <button
+
+                            onClick={()=>setView("table")}
+
+                            className="
+                            border
+                            px-4
+                            py-2
+                            rounded-lg
+                            "
+
+                        >
+
+                            Table
+
+                        </button>
+
+
+                    </div>
+
+
+
+                </div>
+
 
 
             </div>
@@ -285,219 +747,103 @@ function Dashboard(){
 
 
 
-            {/* Main Content */}
+            {
+            view==="board"
+
+            &&
 
 
             <div
+
                 className="
                 grid
-                grid-cols-1
-                lg:grid-cols-4
-                gap-8
-                items-start
+                grid-cols-5
+                gap-5
                 "
+
             >
 
 
+                {
+
+                    columns.map(({name,color})=>(
 
 
+                        <PipelineColumn
+
+                            key={name}
+
+                            name={
+                                name==="Rejected"
+                                ?
+                                "Failed / Rejected"
+                                :
+                                name
+                            }
 
 
-
-                {/* Talent Roster */}
-
-
-                <section
-
-                    className="
-                    lg:col-span-3
-                    bg-white
-                    rounded-xl
-                    p-8
-                    "
-
-                >
+                            count={
+                                getCandidates(name).length
+                            }
 
 
+                            color={color}
 
-                    <h2
-
-                        className="
-                        text-2xl
-                        font-bold
-                        mb-8
-                        "
-
-                    >
-
-                        Talent Roster
-
-                    </h2>
+                        >
 
 
+                            {
+
+                                filteredCandidates
+
+                                .filter(
+                                    c=>
+                                    (
+                                        c.status || "New"
+                                    )===name
+                                )
+
+                                .map(candidate=>(
 
 
-
-
-
-                    <div
-
-                        className="
-                        grid
-                        grid-cols-1
-                        md:grid-cols-2
-                        gap-6
-                        "
-
-                    >
-
-
-
-                        {
-                            candidates.map(
-
-                                candidate => (
-
-
-                                    <CandidateCard
-
+                                    <PipelineCandidateCard
 
                                         key={
                                             candidate.candidate_id
                                         }
 
-
-                                        candidate={
-                                            candidate
-                                        }
-
+                                        candidate={candidate}
 
                                     />
 
 
-                                )
+                                ))
 
-                            )
-                        }
+                            }
 
 
 
-                    </div>
+                        </PipelineColumn>
 
 
+                    ))
 
-
-                </section>
-
-
-
-
-
-
-
-
-
-
-
-
-                {/* Active Requisitions */}
-
-
-
-                <section
-
-                    className="
-                    "
-
-                >
-
-
-                    <h2
-
-                        className="
-                        text-2xl
-                        font-bold
-                        mb-8
-                        "
-
-                    >
-
-                        Active Requisitions
-
-                    </h2>
-
-
-
-
-
-                    <div
-
-                        className="
-                        space-y-6
-                        "
-
-                    >
-
-
-
-
-                        <RequisitionCard
-
-
-                            title="AI Engineer"
-
-
-                            location="Remote / HQ"
-
-
-                            candidates={12}
-
-
-                        />
-
-
-
-
-
-                        <RequisitionCard
-
-
-                            title="Data Engineer"
-
-
-                            location="Bangkok"
-
-
-                            candidates={8}
-
-
-                        />
-
-
-
-
-                    </div>
-
-
-
-
-                </section>
-
-
-
-
+                }
 
 
 
             </div>
 
+            }
 
 
 
 
         </div>
 
+
     );
+
 
 }
 

@@ -44,3 +44,71 @@ class Candidate(Base):
     updated_at = Column(
         DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
     )
+
+class Position(Base):
+
+    __tablename__ = "positions"
+
+
+    id = Column(
+        String,
+        primary_key=True,
+        default=_uuid
+    )
+
+
+    title = Column(
+        String,
+        nullable=False,
+        default=""
+    )
+
+
+    department = Column(
+        String,
+        nullable=False,
+        default=""
+    )
+
+
+    location = Column(
+        String,
+        nullable=False,
+        default=""
+    )
+
+
+    description = Column(
+        Text,
+        nullable=False,
+        default=""
+    )
+
+
+    status = Column(
+        String,
+        nullable=False,
+        default="Open"
+    )
+
+
+    requirements = Column(
+        JSON,
+        nullable=False,
+        default=list
+    )
+
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_utcnow
+    )
+
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_utcnow,
+        onupdate=_utcnow
+    )

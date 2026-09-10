@@ -3,27 +3,39 @@ export interface CandidateSummary {
 
     candidate_id: string;
 
-    full_name: string;
 
-    applied_position: string;
+    full_name?: string;
 
-    location: string;
 
-    email: string;
+    applied_position?: string;
 
-    phone: string;
 
-    experience_total: number;
+    location?: string;
 
-    status: string;
 
-    top_skills: string[];
+    email?: string;
 
-    extraction_confidence: number;
 
-    created_at: string;
+    phone?: string;
+
+
+    experience_total?: number;
+
+
+    status?: string;
+
+
+    top_skills?: string[];
+
+
+    extraction_confidence?: number;
+
+
+    created_at?: string;
 
 }
+
+
 
 
 
@@ -32,17 +44,23 @@ export interface CandidateSummary {
 export interface Experience {
 
 
-    company: string;
+    company?: string;
 
-    position: string;
 
-    start_date: string;
+    position?: string;
 
-    end_date: string;
 
-    description: string;
+    start_date?: string;
+
+
+    end_date?: string;
+
+
+    description?: string;
 
 }
+
+
 
 
 
@@ -51,15 +69,36 @@ export interface Experience {
 export interface Education {
 
 
-    institution: string;
+    institution?: string;
 
-    degree: string;
 
-    field: string;
+    degree?: string;
 
-    year: string;
+
+    field?: string;
+
+
+    year?: string;
 
 }
+
+
+
+
+
+
+
+export interface CandidateSkill {
+
+
+    skill:string;
+
+
+    tools:string[];
+
+}
+
+
 
 
 
@@ -68,66 +107,64 @@ export interface Education {
 export interface CandidateDetailType {
 
 
-    candidate_id: string;
+    candidate_id:string;
 
 
-    full_name: string;
+    full_name?:string;
 
 
-    applied_position: string;
+    applied_position?:string;
 
 
-    location: string;
+    location?:string;
 
 
-    email: string;
+    email?:string;
 
 
-    phone: string;
+    phone?:string;
 
 
-    experience_total: number;
+    experience_total?:number;
 
 
-    status: string;
-
-
-
-    skills: {
-
-        skill:string;
-
-        tools:string[];
-
-    }[];
+    status?:string;
 
 
 
-    summary:string;
+
+    skills?: CandidateSkill[];
 
 
 
-    experience: Experience[];
+
+    summary?:string;
 
 
 
-    education: Education[];
+    experience?: Experience[];
 
 
 
-    resume_url:string;
+    education?: Education[];
 
 
 
-    resume_filename:string;
+
+    resume_url?:string;
 
 
 
-    hr_comment:string;
+    resume_filename?:string;
+
+
+    top_skills?:string[];
+
+
+    hr_comment?:string;
 
 
 
-    extraction_confidence:number;
-
+    extraction_confidence?:number;
 
 }

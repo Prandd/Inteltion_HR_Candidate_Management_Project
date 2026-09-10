@@ -1,99 +1,430 @@
-import { useLocation } from "react-router-dom";
+import {
+    useState
+} from "react";
+
+
+
 
 
 function Header(){
 
-    const location = useLocation();
 
-    const pageTitle = location.pathname === "/positions/new"
-        ? "Position Requirements"
-        : location.pathname === "/positions"
-            ? "Positions List"
-            : "Dashboard";
+    const [
+        search,
+        setSearch
+    ] = useState("");
 
-    const pageDescription = location.pathname === "/positions/new"
-        ? ""
-        : location.pathname === "/positions"
-            ? "Manage current job openings and candidate pipelines."
-            : "Manage your recruitment pipeline";
+
+
+
 
     return (
 
+
         <header
+
+
             className="
-            h-20
+
+            h-14
+
             bg-white
+
             border-b
+
+            border-gray-200
+
             flex
+
             items-center
-            justify-between
-            px-8
+
+            justify-end
+
+            px-6
+
+            shrink-0
+
             "
+
         >
 
-            <div>
 
-                <h1
-                    className="
-                    text-2xl
-                    font-bold
-                    "
-                >
-                    {pageTitle}
-                </h1>
-
-
-                {pageDescription && (
-                    <p className="text-gray-500">
-                        {pageDescription}
-                    </p>
-                )}
-
-            </div>
 
 
 
             <div
+
+
                 className="
+
                 flex
+
                 items-center
+
                 gap-4
+
                 "
+
             >
 
-                <button
+
+
+
+
+
+
+                {/* SEARCH */}
+
+
+                <div
+
                     className="
-                    border
-                    rounded-lg
-                    px-4
-                    py-2
+                    relative
                     "
+
                 >
+
+
+                    <input
+
+
+                        value={search}
+
+
+                        onChange={
+
+                            e=>
+
+                            setSearch(
+                                e.target.value
+                            )
+
+                        }
+
+
+                        placeholder="Search..."
+
+
+                        className="
+
+                        w-[280px]
+
+                        h-9
+
+                        bg-white
+
+                        border
+
+                        border-gray-200
+
+                        rounded-lg
+
+                        pl-9
+
+                        pr-4
+
+                        text-sm
+
+                        text-gray-700
+
+                        outline-none
+
+                        focus:ring-2
+
+                        focus:ring-blue-100
+
+                        "
+
+                    />
+
+
+
+
+
+                    <span
+
+
+                        className="
+
+                        absolute
+
+                        left-3
+
+                        top-2
+
+                        text-gray-400
+
+                        text-sm
+
+                        "
+
+                    >
+
+                        🔍
+
+
+                    </span>
+
+
+
+
+                </div>
+
+
+
+
+
+
+
+
+
+                {/* NOTIFICATION */}
+
+
+                <button
+
+
+                    className="
+
+                    relative
+
+                    w-9
+
+                    h-9
+
+                    flex
+
+                    items-center
+
+                    justify-center
+
+                    rounded-lg
+
+                    hover:bg-gray-50
+
+                    "
+
+                >
+
+
                     🔔
+
+
+
+
+                    <span
+
+
+                        className="
+
+                        absolute
+
+                        -top-1
+
+                        -right-1
+
+                        bg-blue-600
+
+                        text-white
+
+                        text-[10px]
+
+                        w-4
+
+                        h-4
+
+                        rounded-full
+
+                        flex
+
+                        items-center
+
+                        justify-center
+
+                        "
+
+                    >
+
+                        3
+
+
+                    </span>
+
+
+
                 </button>
 
 
 
+
+
+
+
+
+
+                {/* USER */}
+
+
+
                 <div
+
+
                     className="
-                    w-10
-                    h-10
-                    rounded-full
-                    bg-blue-600
+
+                    flex
+
+                    items-center
+
+                    gap-3
+
                     "
+
                 >
 
+
+
+
+                    <div
+
+
+                        className="
+
+                        w-9
+
+                        h-9
+
+                        rounded-full
+
+                        bg-blue-600
+
+                        text-white
+
+                        flex
+
+                        items-center
+
+                        justify-center
+
+                        font-semibold
+
+                        text-sm
+
+                        "
+
+                    >
+
+                        HR
+
+
+                    </div>
+
+
+
+
+
+
+
+                    <div>
+
+
+                        <div
+
+                            className="
+
+                            flex
+
+                            items-center
+
+                            gap-1
+
+                            "
+
+                        >
+
+
+                            <p
+
+                                className="
+
+                                text-sm
+
+                                font-semibold
+
+                                text-gray-900
+
+                                "
+
+                            >
+
+                                HR Admin
+
+
+                            </p>
+
+
+
+                            <span className="text-gray-400 text-xs">
+
+                                ▾
+
+                            </span>
+
+
+
+                        </div>
+
+
+
+
+
+                        <p
+
+
+                            className="
+
+                            text-xs
+
+                            text-gray-400
+
+                            "
+
+                        >
+
+                            Recruiter
+
+
+                        </p>
+
+
+
+                    </div>
+
+
+
+
                 </div>
+
+
+
+
+
 
 
             </div>
 
 
+
+
+
+
         </header>
+
 
     );
 
+
 }
+
 
 
 export default Header;

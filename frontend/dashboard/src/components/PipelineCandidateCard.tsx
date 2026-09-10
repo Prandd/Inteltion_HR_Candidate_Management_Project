@@ -9,6 +9,8 @@ import type {
 
 
 
+
+
 interface Props {
 
     candidate: CandidateSummary;
@@ -19,15 +21,26 @@ interface Props {
 
 
 
-function CandidateCard({
+
+
+
+function PipelineCandidateCard({
 
     candidate
 
-}: Props){
-
+}:Props){
 
 
     const navigate = useNavigate();
+
+
+
+
+
+    const status =
+        candidate.status || "New";
+
+
 
 
 
@@ -37,55 +50,51 @@ function CandidateCard({
 
 
 
-    const confidence = Math.round(
 
-        (candidate.extraction_confidence ?? 0)
+    const confidence =
 
-        * 100
+        Math.round(
 
-    );
+            (candidate.extraction_confidence ?? 0)
 
+            *
 
+            100
 
-
-
-
-
-    function getStatusStyle(status:string){
+        );
 
 
-        switch(status){
 
 
-            case "Interview":
-
-                return "bg-yellow-50 text-yellow-600";
 
 
-            case "Hired":
 
-                return "bg-green-50 text-green-600";
-
-
-            case "Rejected":
-
-                return "bg-red-50 text-red-600";
+    const statusStyle:Record<string,string> = {
 
 
-            case "Assessment":
-
-                return "bg-purple-50 text-purple-600";
-
-
-            default:
-
-                return "bg-blue-50 text-blue-600";
+        New:
+        "bg-blue-50 text-blue-600",
 
 
-        }
+        Assessment:
+        "bg-orange-50 text-orange-600",
 
 
-    }
+        Interview:
+        "bg-purple-50 text-purple-600",
+
+
+        Hired:
+        "bg-green-50 text-green-600",
+
+
+        Rejected:
+        "bg-red-50 text-red-600",
+
+
+    };
+
+
 
 
 
@@ -94,6 +103,7 @@ function CandidateCard({
 
 
     return (
+
 
 
         <div
@@ -140,15 +150,14 @@ function CandidateCard({
 
             <div
 
+
                 className="
 
                 flex
 
                 justify-between
 
-                items-start
-
-                gap-3
+                gap-2
 
                 "
 
@@ -156,21 +165,17 @@ function CandidateCard({
 
 
 
-                <div
-
-                    className="min-w-0"
-
-                >
+                <div className="min-w-0">
 
 
+                    <h3
 
-                    <h2
 
                         className="
 
                         text-sm
 
-                        font-bold
+                        font-semibold
 
                         text-gray-900
 
@@ -181,20 +186,19 @@ function CandidateCard({
                     >
 
                         {
-
                             candidate.full_name ||
-
                             "Unknown Candidate"
-
                         }
 
 
-                    </h2>
+                    </h3>
+
 
 
 
 
                     <p
+
 
                         className="
 
@@ -204,16 +208,15 @@ function CandidateCard({
 
                         mt-1
 
+                        truncate
+
                         "
 
                     >
 
                         {
-
                             candidate.applied_position ||
-
                             "-"
-
                         }
 
 
@@ -236,23 +239,21 @@ function CandidateCard({
 
                     text-[11px]
 
-                    font-medium
-
-                    px-3
+                    px-2
 
                     py-1
 
                     rounded-full
 
-                    whitespace-nowrap
+                    font-medium
 
                     ${
 
-                        getStatusStyle(
+                    statusStyle[status]
 
-                            candidate.status || "New"
+                    ||
 
-                        )
+                    "bg-gray-100 text-gray-600"
 
                     }
 
@@ -261,11 +262,7 @@ function CandidateCard({
 
                 >
 
-                    {
-
-                        candidate.status || "New"
-
-                    }
+                    {status}
 
 
                 </span>
@@ -282,11 +279,12 @@ function CandidateCard({
 
 
 
-            {/* INFO */}
+            {/* DETAIL */}
 
 
 
             <div
+
 
                 className="
 
@@ -302,70 +300,70 @@ function CandidateCard({
 
 
 
+                <div
 
-                <p>
+                    className="
 
+                    flex
 
-                    <span
+                    justify-between
 
-                        className="text-gray-500"
+                    "
 
-                    >
+                >
 
-                        Location:
+                    <span className="text-gray-400">
 
-                    </span>
-
-
-                    {" "}
-
-
-                    {
-
-                        candidate.location || "-"
-
-                    }
-
-
-                </p>
-
-
-
-
-
-
-                <p>
-
-
-                    <span
-
-                        className="text-gray-500"
-
-                    >
-
-                        Experience:
+                        Experience
 
                     </span>
 
 
-                    {" "}
-
-
-                    <b>
+                    <span className="font-medium text-gray-700">
 
                         {
-
                             candidate.experience_total ?? 0
+                        } yrs
 
+                    </span>
+
+
+                </div>
+
+
+
+
+
+
+                <div
+
+                    className="
+
+                    flex
+
+                    justify-between
+
+                    "
+
+                >
+
+                    <span className="text-gray-400">
+
+                        Location
+
+                    </span>
+
+
+                    <span className="text-gray-700 truncate max-w-[120px]">
+
+                        {
+                            candidate.location || "-"
                         }
 
-                        {" "}yrs
-
-                    </b>
+                    </span>
 
 
-                </p>
-
+                </div>
 
 
 
@@ -390,13 +388,14 @@ function CandidateCard({
 
             <div
 
+
                 className="
 
                 flex
 
                 flex-wrap
 
-                gap-2
+                gap-1.5
 
                 mt-4
 
@@ -407,11 +406,7 @@ function CandidateCard({
 
                 {
 
-                skills
-
-                .slice(0,3)
-
-                .map(skill=>(
+                skills.slice(0,3).map(skill=>(
 
 
                     <span
@@ -432,7 +427,7 @@ function CandidateCard({
 
                         py-1
 
-                        rounded
+                        rounded-full
 
                         "
 
@@ -445,7 +440,6 @@ function CandidateCard({
 
 
                 ))
-
 
                 }
 
@@ -463,19 +457,15 @@ function CandidateCard({
 
 
 
-            {/* AI CONFIDENCE */}
+            {/* AI MATCH */}
 
 
 
-            <div
-
-                className="mt-4"
-
-            >
-
+            <div className="mt-4">
 
 
                 <div
+
 
                     className="
 
@@ -485,30 +475,22 @@ function CandidateCard({
 
                     text-[11px]
 
-                    mb-2
+                    mb-1
 
                     "
 
                 >
 
 
-                    <span
+                    <span className="text-gray-400">
 
-                        className="text-gray-500"
-
-                    >
-
-                        AI Confidence
+                        AI Match
 
                     </span>
 
 
 
-                    <span
-
-                        className="font-medium"
-
-                    >
+                    <span className="text-blue-600 font-medium">
 
                         {confidence}%
 
@@ -522,8 +504,8 @@ function CandidateCard({
 
 
 
-
                 <div
+
 
                     className="
 
@@ -548,7 +530,7 @@ function CandidateCard({
 
                         h-full
 
-                        bg-blue-600
+                        bg-blue-500
 
                         rounded-full
 
@@ -559,7 +541,6 @@ function CandidateCard({
                             width:`${confidence}%`
 
                         }}
-
 
                     />
 
@@ -585,9 +566,16 @@ function CandidateCard({
 
             <div
 
+
                 className="
 
                 mt-4
+
+                pt-3
+
+                border-t
+
+                border-gray-100
 
                 flex
 
@@ -603,29 +591,20 @@ function CandidateCard({
 
                 <span
 
+
                     className="
 
                     text-[11px]
 
                     text-gray-400
 
-                    truncate
-
-                    max-w-[160px]
-
                     "
 
                 >
 
-                    {
-
-                        candidate.email || "-"
-
-                    }
-
+                    View Profile
 
                 </span>
-
 
 
 
@@ -636,17 +615,15 @@ function CandidateCard({
 
                     className="
 
-                    text-xs
-
                     text-blue-600
 
-                    font-medium
+                    text-sm
 
                     "
 
                 >
 
-                    View →
+                    →
 
                 </span>
 
@@ -659,10 +636,12 @@ function CandidateCard({
 
 
 
+
         </div>
 
 
     );
+
 
 }
 
@@ -670,4 +649,4 @@ function CandidateCard({
 
 
 
-export default CandidateCard;
+export default PipelineCandidateCard;

@@ -4,7 +4,10 @@ import {
 } from "react-router-dom";
 
 
-function Sidebar() {
+
+
+
+function Sidebar(){
 
 
     const navigate = useNavigate();
@@ -13,40 +16,83 @@ function Sidebar() {
 
 
 
-    const menuClass = (path:string) => {
+
+
+
+
+
+
+    function menuClass(path:string){
+
+
+        const active =
+
+            location.pathname === path;
+
+
+
 
 
         return `
 
+        flex
+
+        items-center
+
+        gap-3
+
         w-full
-        text-left
+
         px-4
+
         py-3
+
         rounded-xl
+
+        text-sm
+
         font-medium
 
+        transition-all
+
+
         ${
-            location.pathname === path
+            active
 
             ?
 
             `
+
             bg-blue-50
-            text-blue-700
+
+            text-blue-600
+
             `
 
             :
 
             `
-            hover:bg-gray-100
-            text-gray-700
+
+            text-gray-600
+
+            hover:bg-gray-50
+
+            hover:text-blue-600
+
             `
 
         }
 
         `;
 
-    };
+
+    }
+
+
+
+
+
+
 
 
 
@@ -54,47 +100,176 @@ function Sidebar() {
 
     return (
 
+
+
         <aside
 
+
             className="
-            relative
-            w-72
-            min-h-screen
+
+            fixed
+
+            left-0
+
+            top-0
+
+            w-[240px]
+
+            h-screen
+
             bg-white
+
             border-r
-            px-6
-            py-8
+
+            border-gray-200
+
+            flex
+
+            flex-col
+
+            px-5
+
+            py-6
+
+            z-50
+
             "
 
         >
 
 
 
-            {/* Logo */}
-
-            <div className="mb-10">
 
 
-                <h1
+
+
+            {/* LOGO */}
+
+
+
+            <div
+
+                className="
+
+                mb-8
+
+                "
+
+            >
+
+
+
+                <div
 
                     className="
-                    text-3xl
-                    font-bold
-                    text-blue-700
+
+                    flex
+
+                    items-center
+
+                    gap-3
+
                     "
 
                 >
 
-                    Inteltion
-
-                </h1>
 
 
-                <p className="text-gray-500">
 
-                    Talent Acquisition
 
-                </p>
+                    <div
+
+
+                        className="
+
+                        w-10
+
+                        h-10
+
+                        rounded-xl
+
+                        bg-blue-600
+
+                        text-white
+
+                        flex
+
+                        items-center
+
+                        justify-center
+
+                        font-bold
+
+                        text-lg
+
+                        "
+
+                    >
+
+                        I
+
+
+                    </div>
+
+
+
+
+
+
+
+                    <div>
+
+
+                        <h1
+
+
+                            className="
+
+                            text-xl
+
+                            font-bold
+
+                            text-blue-600
+
+                            "
+
+                        >
+
+                            Inteltion
+
+
+                        </h1>
+
+
+
+
+
+                        <p
+
+
+                            className="
+
+                            text-xs
+
+                            text-gray-400
+
+                            "
+
+                        >
+
+                            Talent Acquisition
+
+
+                        </p>
+
+
+
+                    </div>
+
+
+
+
+                </div>
 
 
             </div>
@@ -103,25 +278,52 @@ function Sidebar() {
 
 
 
-            {/* Add Candidate */}
+
+
+
+
+            {/* ADD CANDIDATE */}
+
+
 
             <button
 
 
-                onClick={() => navigate("/upload")}
+
+                onClick={
+
+                    ()=>navigate("/upload")
+
+                }
+
 
 
                 className="
+
                 w-full
+
                 bg-blue-600
-                text-white
-                py-3
-                rounded-xl
-                mb-8
+
                 hover:bg-blue-700
+
+                text-white
+
+                py-3
+
+                rounded-xl
+
+                text-sm
+
+                font-semibold
+
+                mb-8
+
+                transition
+
                 "
 
             >
+
 
                 + Add Candidate
 
@@ -133,21 +335,54 @@ function Sidebar() {
 
 
 
-            {/* Menu */}
 
-            <nav className="space-y-2">
+
+
+            {/* MENU */}
+
+
+
+            <nav
+
+                className="
+
+                space-y-2
+
+                "
+
+            >
+
+
+
 
 
 
                 <button
 
 
-                    onClick={() => navigate("/")}
+                    onClick={
+
+                        ()=>navigate("/")
+
+                    }
 
 
-                    className={menuClass("/")}
+                    className={
+
+                        menuClass("/")
+
+                    }
+
 
                 >
+
+
+                    <span className="text-base">
+
+                        ▦
+
+                    </span>
+
 
                     Dashboard
 
@@ -158,16 +393,36 @@ function Sidebar() {
 
 
 
+
+
+
+
                 <button
 
 
-                    onClick={() => navigate("/positions")}
+                    onClick={
+
+                        ()=>navigate("/positions")
+
+                    }
 
 
-                    className={menuClass("/positions")}
+                    className={
+
+                        menuClass("/positions")
+
+                    }
 
 
                 >
+
+
+                    <span className="text-base">
+
+                        ▣
+
+                    </span>
+
 
                     Positions
 
@@ -179,22 +434,6 @@ function Sidebar() {
 
 
 
-                <button
-
-
-                    onClick={() => navigate("/pipeline")}
-
-
-                    className={menuClass("/pipeline")}
-
-
-                >
-
-                    Candidate Flow
-
-
-                </button>
-
 
 
             </nav>
@@ -205,31 +444,122 @@ function Sidebar() {
 
 
 
-            {/* Bottom */}
+
+
+            {/* BOTTOM */}
+
+
 
             <div
 
+
                 className="
-                absolute
-                bottom-8
-                left-6
+
+                mt-auto
+
+                space-y-2
+
                 "
 
             >
 
-                <p
+
+
+
+
+                <button
+
 
                     className="
-                    text-gray-400
+
+                    w-full
+
+                    flex
+
+                    items-center
+
+                    gap-3
+
+                    px-4
+
+                    py-3
+
+                    rounded-xl
+
                     text-sm
+
+                    text-gray-600
+
+                    hover:bg-gray-50
+
+                    transition
+
                     "
 
                 >
 
+
+                    <span>
+                        ⚙
+                    </span>
+
+
                     Settings
 
 
-                </p>
+                </button>
+
+
+
+
+
+
+
+
+                <button
+
+
+                    className="
+
+                    w-full
+
+                    flex
+
+                    items-center
+
+                    gap-3
+
+                    px-4
+
+                    py-3
+
+                    rounded-xl
+
+                    text-sm
+
+                    text-gray-600
+
+                    hover:bg-gray-50
+
+                    transition
+
+                    "
+
+                >
+
+
+                    <span>
+                        ?
+                    </span>
+
+
+                    Support
+
+
+                </button>
+
+
+
 
 
             </div>
@@ -240,10 +570,14 @@ function Sidebar() {
 
         </aside>
 
+
     );
 
 
 }
+
+
+
 
 
 export default Sidebar;
