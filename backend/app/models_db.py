@@ -1,13 +1,8 @@
-import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Column, DateTime, Float, String, Text
 
 from .database import Base
-
-
-def _uuid() -> str:
-    return str(uuid.uuid4())
 
 
 def _utcnow() -> datetime:
@@ -20,7 +15,9 @@ class Candidate(Base):
 
     __tablename__ = "candidates"
 
-    candidate_id = Column(String, primary_key=True, default=_uuid)
+    # 7-digit zero-padded running number ("0000001"), assigned by the backend in
+    # creation order - see next_candidate_id() in routers/candidates.py.
+    candidate_id = Column(String, primary_key=True)
     full_name = Column(String, nullable=False, default="")
     email = Column(String, nullable=False, default="")
     phone = Column(String, nullable=False, default="")
@@ -37,7 +34,8 @@ class Candidate(Base):
     line_manager_comment = Column(Text, nullable=False, default="")
     extraction_confidence = Column(Float, nullable=False, default=0)
     raw_text_snippet = Column(Text, nullable=False, default="")
-    status = Column(String, nullable=False, default="New")
+    status = Column(String, nullable=False, default="New")  # HR pipeline
+    upload_status = Column(String, nullable=False, default="Not Uploaded")  # file lifecycle
     resume_url = Column(String, nullable=False, default="")
     resume_filename = Column(String, nullable=False, default="")
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)

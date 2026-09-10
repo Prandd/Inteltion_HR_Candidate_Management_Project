@@ -4,7 +4,10 @@ WORKDIR /app
 
 # Build context is the repo root (see docker-compose.yml), so paths are backend/*
 COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# python:3.11-slim ships pip 24.0, which crashes resolving the PyPI JSON simple
+# API (Link.from_json UnboundLocalError). Upgrade before installing.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 

@@ -15,6 +15,27 @@ STATUS_VALUES = [
     "Archived",
 ]
 
+# Upload lifecycle - SEPARATE from the HR pipeline `status` above.
+#   Not Uploaded : draft candidate, no CV yet (reserved - no create-draft endpoint yet)
+#   Processing   : CV received, extraction running
+#   Done         : extraction finished, candidate ready
+#   Failed       : extraction/storage error - row kept so HR can delete/retry
+UPLOAD_STATUS_VALUES = ["Not Uploaded", "Processing", "Done", "Failed"]
+
+# Task-extension req #4: a candidate/upload may be deleted or cancelled only when
+# it is NOT in progress. "Processing" -> DELETE returns 400.
+DELETABLE_UPLOAD_STATUSES = {"Not Uploaded", "Done", "Failed"}
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
 
 class SkillItem(BaseModel):
     skill: str = ""
@@ -70,6 +91,7 @@ class CandidateOut(CandidateBase):
     model_config = ConfigDict(from_attributes=True)
 
     candidate_id: str
+    upload_status: str = "Not Uploaded"  # read-only, backend-managed
     resume_url: str = ""
     resume_filename: str = ""
     created_at: datetime
@@ -89,6 +111,7 @@ class CandidateSummary(BaseModel):
     phone: str
     experience_total: float
     status: str
+    upload_status: str
     top_skills: list[str] = Field(default_factory=list)
     extraction_confidence: float
     created_at: datetime

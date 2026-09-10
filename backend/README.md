@@ -39,21 +39,54 @@ cd backend
 pytest
 ```
 
-Smoke tests: health, list envelope, 404 shape, upload rejects non-pdf/docx, upload -> get -> edit roundtrip, bad-status rejection.
+Smoke tests: auth guard + login, list/filter/keyword search, running-id format,
+multi-file upload, conditional delete, 404 shape, bad-status rejection.
 
-## API surface (frozen contract - see `shared-contracts/`)
+## Auth
+
+Single Admin/HR account (env-overridable, default `admin` / `password123`).
+
+```bash
+curl -s -X POST localhost:8000/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"admin","password":"password123"}'
+# -> { "data": { "access_token": "<jwt>", "token_type": "bearer" }, "error": null }
+```
+
+Send `Authorization: Bearer <jwt>` on every `/api/candidates/*` call. Missing/expired -> `401`.
+
+## API surface (see `shared-contracts/`)
 
 | Method | Path | Success | Notes |
 |---|---|---|---|
-| `POST` | `/api/candidates/upload` | `201` | multipart `file` (.pdf/.docx) -> full candidate |
-| `GET`  | `/api/candidates` | `200` | list of summary objects |
+| `POST` | `/api/auth/login` | `200` / `401` | `{username, password}` -> `{access_token, token_type}` |
+| `POST` | `/api/candidates/upload` | `201` / `400` | multipart **`files`** (repeatable, .pdf/.docx) -> `{created[], failed[], count}` |
+| `GET`  | `/api/candidates` | `200` | summary list. Filters: `status`, `applied_position`, `min_experience`, `max_experience`, `q` |
 | `GET`  | `/api/candidates/{id}` | `200` / `404` | full candidate |
 | `PUT`  | `/api/candidates/{id}` | `200` / `400` / `404` | accepts full editable schema, overwrites |
+| `DELETE` | `/api/candidates/{id}` | `200` / `400` / `404` | allowed unless `upload_status == "Processing"`, else `400` |
 | `GET`  | `/api/candidates/{id}/resume-url` | `200` / `404` | `{ resume_url, filename }` |
-| `GET`  | `/health` | `200` | |
+| `GET`  | `/health` | `200` | open, no auth |
+
+`candidate_id` is now a **7-digit running number** (`0000001`, `0000002`, ...) assigned in creation order - not a UUID.
+
+`upload_status` (new, read-only, **separate from `status`**) tracks the file/extraction lifecycle:
+`Not Uploaded` -> `Processing` -> `Done` (or `Failed`). Upload creates the row as `Processing`, then
+flips it to `Done` once extraction returns. A candidate can be deleted in any state **except** `Processing`.
+The HR pipeline `status` (`New`..`Archived`) is untouched by all of this.
 
 Every response: `{ "data": ..., "error": null }` on success, `{ "data": null, "error": "message" }` on failure.
-Errors: `400` bad file / validation, `404` unknown id, `500` unexpected.
+Errors: `400` bad file / validation / un-deletable status, `401` missing/bad token, `404` unknown id, `500` unexpected.
+
+### `GET /api/candidates` query params
+
+| Param | Effect |
+|---|---|
+| `status` | exact match on candidate `status` |
+| `applied_position` | exact match on position name |
+| `min_experience` | `experience_total >= value` |
+| `max_experience` | `experience_total <= value` |
+| `q` | case-insensitive substring over `full_name`, `email`, `candidate_id`, skill names + tools |
 
 ## Layout
 
@@ -61,15 +94,17 @@ Errors: `400` bad file / validation, `404` unknown id, `500` unexpected.
 backend/
   app/
     main.py           FastAPI app, CORS, /files mount, uniform error envelope
-    config.py         env-driven settings (+ safe defaults)
+    config.py         env-driven settings (+ safe defaults, auth creds)
+    auth.py           JWT create/verify + require_auth dependency
     database.py       SQLAlchemy engine / session
     models_db.py      Candidate ORM row (skills/experience/education = JSON columns)
     schemas.py        Pydantic models = THE CONTRACT (mirrors shared-contracts/schema.json)
     storage.py        LocalDiskStorage now; AzureBlobStorage later
     extraction.py     MOCK extract_candidate(bytes) -> dict
-    seed.py           loads mock-candidates.json on first boot
+    seed.py           loads mock-candidates.json on first boot (7-digit running ids)
     routers/
-      candidates.py   all endpoints
+      auth.py         POST /api/auth/login
+      candidates.py   candidate CRUD + upload + filter/search
   tests/test_smoke.py
   Dockerfile
   requirements.txt

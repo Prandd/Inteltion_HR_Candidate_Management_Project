@@ -11,7 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import models_db  # noqa: F401  - registers ORM models on Base
 from .config import ensure_dirs, settings
 from .database import Base, engine
-from .routers import candidates
+from .routers import auth, candidates
 from .seed import seed_if_empty
 
 
@@ -39,6 +39,7 @@ app.add_middleware(
 
 ensure_dirs()
 app.mount("/files", StaticFiles(directory=settings.upload_dir), name="files")
+app.include_router(auth.router, prefix="/api")
 app.include_router(candidates.router, prefix="/api")
 
 

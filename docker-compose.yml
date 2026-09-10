@@ -17,6 +17,9 @@ services:
       API_BASE_URL: http://localhost:8000
       CORS_ORIGINS: http://localhost:5173,http://localhost:5174
       MAX_UPLOAD_MB: "10"
+      AUTH_USERNAME: admin
+      AUTH_PASSWORD: password123
+      JWT_SECRET: dev-secret-change-me
     volumes:
       - ./backend/data:/app/data          # DB + uploaded CVs persist on the host
       - ./shared-contracts:/contracts:ro  # seed data, read-only

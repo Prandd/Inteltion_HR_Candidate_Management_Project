@@ -1,6 +1,5 @@
 import json
 import os
-import uuid
 
 from .config import settings
 from .database import SessionLocal
@@ -24,10 +23,13 @@ def seed_if_empty() -> None:
         with open(path, "r", encoding="utf-8") as fh:
             items = json.load(fh)
 
-        for item in items:
+        # candidate_id is a 7-digit running number in creation order - the JSON's
+        # own candidate_id is ignored so seeded + uploaded rows share one format.
+        for idx, item in enumerate(items, start=1):
             fields = CandidateBase.model_validate(item).model_dump(mode="json")
             db.add(Candidate(
-                candidate_id=str(item.get("candidate_id") or uuid.uuid4()),
+                candidate_id=f"{idx:07d}",
+                upload_status=item.get("upload_status", "Done"),
                 resume_url=item.get("resume_url", ""),
                 resume_filename=item.get("resume_filename", ""),
                 **fields,

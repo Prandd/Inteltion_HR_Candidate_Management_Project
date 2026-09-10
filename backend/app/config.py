@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     api_base_url: str = "http://localhost:8000"
     max_upload_mb: int = 10
 
+    # ---- Auth (single Admin/HR account) ----
+    auth_username: str = "admin"
+    auth_password: str = "password123"
+    jwt_secret: str = "dev-secret-change-me"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 480  # 8h
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
