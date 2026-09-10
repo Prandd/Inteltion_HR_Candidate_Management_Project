@@ -35,12 +35,28 @@ SAMPLE_DIR = Path(__file__).parent / "sample_cvs"
 SUPPORTED_EXTENSIONS = {".pdf", ".docx"}
 
 
+def _has_mojibake(candidate: dict) -> bool:
+    """Recursively checks every string value for the Unicode replacement
+    character, so a regression here fails loudly in the harness output."""
+    def _walk(v):
+        if isinstance(v, str):
+            return "\ufffd" in v
+        if isinstance(v, list):
+            return any(_walk(x) for x in v)
+        if isinstance(v, dict):
+            return any(_walk(x) for x in v.values())
+        return False
+    return _walk(candidate)
+
+
 def _summarize(candidate: dict) -> str:
+    summary = candidate.get("summary") or ""
     lines = [
-        f"  full_name:            {candidate.get('full_name')!r}",
+        f"  full_name:            {candidate.get('full_name')!r} (title-cased)",
         f"  email:                {candidate.get('email')!r}",
         f"  phone:                {candidate.get('phone')!r}",
-        f"  applied_position:     {candidate.get('applied_position')!r}",
+        f"  applied_position:     {candidate.get('applied_position')!r} (must be '')",
+        f"  summary:              {summary!r} (must NOT be '')",
         f"  skills:               {len(candidate.get('skills', []))} group(s)",
         f"  experience entries:   {len(candidate.get('experience', []))}",
         f"  experience_total:     {candidate.get('experience_total')} years (computed)",
@@ -51,6 +67,7 @@ def _summarize(candidate: dict) -> str:
         f"  line_manager_comment: {candidate.get('line_manager_comment')!r} (must be '')",
         f"  candidate_id:         {candidate.get('candidate_id')!r} (must be None)",
         f"  extraction_confidence:{candidate.get('extraction_confidence')}",
+        f"  contains '\\ufffd':    {_has_mojibake(candidate)} (must be False)",
     ]
     return "\n".join(lines)
 

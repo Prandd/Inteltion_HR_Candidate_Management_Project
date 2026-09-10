@@ -3,7 +3,6 @@
 !.env.example
 azure-storage-connection-string.txt
 requirements.txt
-
 # --- backend (Member 3) ---
 # root rule above ignores every requirements.txt; keep the backend one tracked
 !backend/requirements.txt

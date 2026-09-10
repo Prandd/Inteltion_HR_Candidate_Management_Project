@@ -20,9 +20,16 @@ Pipeline:
        what the LLM did.
     5. Overwrite `experience_total` with the programmatically-computed
        value — the LLM's own arithmetic is never trusted.
-    5b. `full_name` is always upper-cased (enforced in schema.py's
+    5b. `full_name` is always title-cased (enforced in schema.py's
        validator, applied on every construction of CandidateExtraction —
        including this step, the initial validation, and the fallback path).
+    5c. `summary` is guaranteed non-empty: if the LLM returned nothing
+       usable, a strictly factual one-line summary is derived from
+       already-extracted experience/skills only — never fabricated.
+    5d. Every string field — including nested skills/experience/education
+       entries — is passed through a sanitizer (schema.py's model
+       validator) that strips mojibake and the Unicode replacement
+       character ('\ufffd') left behind by PDFs with broken font tables.
     6. On ANY unrecoverable failure along the way, return the hardcoded
        fallback (schema-valid, confidence=0.0) instead of raising —
        a malformed response must never crash the pipeline.
@@ -41,6 +48,7 @@ from llm_client import LLMCallError, LLMConfigError, call_llm_json
 from pdf_docx_reader import TextExtractionError, UnsupportedFileTypeError, extract_text
 from prompt import build_messages
 from schema import CandidateExtraction
+from summary_fallback import build_fallback_summary
 
 logger = logging.getLogger("llm_service.extractor")
 
@@ -97,8 +105,9 @@ def _apply_hard_business_rules(
         - candidate_id is always None (backend-assigned).
         - experience_total is always computed programmatically, never
           trusted from the LLM.
-        - full_name is always upper-cased (enforced by schema.py's
+        - full_name is always title-cased (enforced by schema.py's
           validator, which fires again on this re-construction).
+        - summary is guaranteed non-empty and non-fabricated (see below).
     """
     data = candidate.model_dump()
 
@@ -109,6 +118,14 @@ def _apply_hard_business_rules(
 
     experience_dicts = [exp for exp in data.get("experience", [])]
     data["experience_total"] = compute_experience_total(experience_dicts)
+
+    # Guarantee a non-empty, non-fabricated summary. If the LLM left it
+    # blank (or the prompt-level instruction to avoid fabrication caused it
+    # to leave a sparse CV's summary empty), derive a strictly factual
+    # one-liner from fields we've ALREADY extracted and validated — never
+    # invent new facts here either.
+    summary = (data.get("summary") or "").strip()
+    data["summary"] = summary if summary else build_fallback_summary(data)
 
     return CandidateExtraction(**data)
 
