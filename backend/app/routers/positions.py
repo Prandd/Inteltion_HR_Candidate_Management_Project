@@ -27,13 +27,6 @@ class PositionCreate(BaseModel):
     skills:list = []
 
 
-
-
-
-
-
-
-
 positions = [
 
 
