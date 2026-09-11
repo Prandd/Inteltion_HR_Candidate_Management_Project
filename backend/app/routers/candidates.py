@@ -1,5 +1,4 @@
 import os
-import shutil
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -124,6 +123,22 @@ def update_candidate(
     return {"data": _to_out(row), "error": None}
 
 
+@router.get("/candidates/{candidate_id}/resume-url")
+def get_resume_url(candidate_id: str, db: Session = Depends(get_db)):
+    """Resolves a fresh, working link every call - for Azure Blob this is a
+    short-lived SAS URL, so don't rely on the `resume_url` stored on the
+    candidate record staying valid forever; call this endpoint instead."""
+    row = db.get(Candidate, candidate_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    url = (
+        storage.resolve_url(candidate_id, row.resume_filename)
+        if row.resume_filename
+        else row.resume_url
+    )
+    return {"data": {"resume_url": url, "filename": row.resume_filename}, "error": None}
+
+
 @router.delete("/candidates/{candidate_id}")
 def delete_candidate(candidate_id: str, db: Session = Depends(get_db)):
     """Cancel upload / delete a candidate - allowed only when the upload is not
@@ -138,10 +153,7 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db)):
 
     db.delete(row)
     db.commit()
-
-    folder = os.path.join(settings.upload_dir, candidate_id)
-    if os.path.isdir(folder):
-        shutil.rmtree(folder, ignore_errors=True)
+    storage.delete(candidate_id)  # local folder or Azure blobs - whichever is active
 
     return {"data": {"candidate_id": candidate_id, "deleted": True}, "error": None}
 

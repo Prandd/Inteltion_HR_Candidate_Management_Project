@@ -61,7 +61,7 @@ cd Inteltion_HR_Candidate_Management_Project
 ## 4. Environment Variables & Secrets (Read This Before Anything Else)
 
 Inteltion has provided the team with:
-- **Azure OpenAI** access: `CV_SCORING_PROVIDER`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_STORAGE_CONNECTION_STRING_FILE`
+- **Azure OpenAI** access: `CV_SCORING_PROVIDER`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_STORAGE_CONNECTION_STRING`
 - An `azure-storage-connection-string.txt` file containing `DefaultEndpointsProtocol`, `EndpointSuffix`, `AccountName`, `AccountKey`
 
 ### 🔒 Critical rule: none of these values are ever committed to Git
@@ -91,7 +91,7 @@ AZURE_OPENAI_API_KEY=<paste-from-team-lead>
 AZURE_OPENAI_DEPLOYMENT=<your-deployment-name>
 
 # --- Azure Blob Storage (Member 3, used inside backend for file uploads) ---
-AZURE_STORAGE_CONNECTION_STRING_FILE=<paste-full-connection-string-here>
+AZURE_STORAGE_CONNECTION_STRING=<paste-full-connection-string-here>
 
 # --- Backend ---
 DATABASE_URL=postgresql://inteltion:inteltion@localhost:5432/inteltion_mvp
@@ -103,7 +103,7 @@ VITE_USE_MOCK_DATA=true
 ```
 
 ### 4.2 Building the Azure Storage connection string
-The `azure-storage-connection-string.txt` file Inteltion provided contains four separate fields. Combine them into a **single connection string** for `AZURE_STORAGE_CONNECTION_STRING_FILE` in this exact format:
+The `azure-storage-connection-string.txt` file Inteltion provided contains four separate fields. Combine them into a **single connection string** for `AZURE_STORAGE_CONNECTION_STRING` in this exact format:
 
 ```
 DefaultEndpointsProtocol=<value>;AccountName=<value>;AccountKey=<value>;EndpointSuffix=<value>
@@ -114,7 +114,7 @@ Example (values are illustrative, not real):
 DefaultEndpointsProtocol=https;AccountName=inteltionstorage;AccountKey=abc123...==;EndpointSuffix=core.windows.net
 ```
 
-Paste the fully-assembled string as the value of `AZURE_STORAGE_CONNECTION_STRING_FILE` in your `.env`. Only Member 3 (backend) and Member 4 (if testing upload-to-blob directly) need this value locally — the two frontend lanes never touch Azure credentials at all.
+Paste the fully-assembled string as the value of `AZURE_STORAGE_CONNECTION_STRING` in your `.env`. Only Member 3 (backend) and Member 4 (if testing upload-to-blob directly) need this value locally — the two frontend lanes never touch Azure credentials at all.
 
 ### 4.3 Who needs which secret
 
@@ -124,7 +124,7 @@ Paste the fully-assembled string as the value of `AZURE_STORAGE_CONNECTION_STRIN
 | `AZURE_OPENAI_ENDPOINT` | Member 4 | `llm-service/` — API base URL |
 | `AZURE_OPENAI_API_KEY` | Member 4 | `llm-service/` — auth |
 | `AZURE_OPENAI_DEPLOYMENT` | Member 4 | `llm-service/` — model deployment name |
-| `AZURE_STORAGE_CONNECTION_STRING_FILE` | Member 3 | `backend/` — stores uploaded CV files in Blob |
+| `AZURE_STORAGE_CONNECTION_STRING` | Member 3 | `backend/` — stores uploaded CV files in Blob |
 | `DATABASE_URL` | Member 3 | `backend/` — Postgres connection |
 | `VITE_API_BASE_URL` / `VITE_USE_MOCK_DATA` | Members 1 & 2 | frontend `.env` — points at real API or mock data |
 
@@ -194,7 +194,7 @@ uvicorn app.main:app --reload --port 8000
 ```
 - Runs on `http://localhost:8000` (interactive API docs at `/docs`).
 - Needs a local Postgres instance — either run `docker compose up postgres` alone, or point `DATABASE_URL` at SQLite for faster local iteration (`sqlite:///./dev.db`) during early days, then switch to Postgres before Day 6 integration.
-- Needs `AZURE_STORAGE_CONNECTION_STRING_FILE` only once you build the real upload endpoint (Day 4) — before that, work against your hardcoded dummy extraction function per your sprint plan.
+- Needs `AZURE_STORAGE_CONNECTION_STRING` only once you build the real upload endpoint (Day 4) — before that, work against your hardcoded dummy extraction function per your sprint plan.
 
 ### 🟨 Member 4 — LLM Extraction Service
 ```bash
@@ -229,7 +229,7 @@ python run_test_harness.py      # runs your sample CVs through extraction and pr
 | Azure OpenAI 401/403 error | Double-check `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` — no trailing slash mismatches, no quotes around values in `.env` |
 | Azure Blob upload fails | Re-verify the assembled connection string format in Section 4.2 — a missing `;` between fields is the most common mistake |
 | `npm install` fails | Confirm Node 20.x with `node --version`; delete `node_modules` + `package-lock.json` and retry |
-| Backend can't find `AZURE_STORAGE_CONNECTION_STRING_FILE` | Confirm `.env` exists in `backend/` (or the repo root, depending on your `docker-compose.yml` setup) and isn't named `.env.example` |
+| Backend can't find `AZURE_STORAGE_CONNECTION_STRING` | Confirm `.env` exists in `backend/` (or the repo root, depending on your `docker-compose.yml` setup) and isn't named `.env.example` |
 
 ---
 

@@ -13,6 +13,7 @@ from .config import ensure_dirs, settings
 from .database import Base, engine
 from .routers import auth, candidates
 from .seed import seed_if_empty
+from .storage import LocalDiskStorage, storage
 
 
 @asynccontextmanager
@@ -38,7 +39,10 @@ app.add_middleware(
 )
 
 ensure_dirs()
-app.mount("/files", StaticFiles(directory=settings.upload_dir), name="files")
+if isinstance(storage, LocalDiskStorage):
+    # Only meaningful for local-disk storage - Azure Blob resumes are served via
+    # resolve_url() (a signed URL straight to blob storage), not through the API.
+    app.mount("/files", StaticFiles(directory=settings.upload_dir), name="files")
 app.include_router(auth.router, prefix="/api")
 app.include_router(candidates.router, prefix="/api")
 

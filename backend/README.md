@@ -2,11 +2,28 @@
 
 FastAPI + SQLite + local disk. **Everything external is mocked** for this sprint:
 
-| External thing | This week | Day 6 swap |
+| External thing | This week | Real deploy |
 |---|---|---|
 | LLM CV extraction (Member 4) | `app/extraction.py` returns varied schema-valid fake data, ignores file bytes | change one import in `app/routers/candidates.py` |
-| File storage (Azure Blob) | `app/storage.py` `LocalDiskStorage` writes to `data/uploads/`, served at `/files/...` | add `AzureBlobStorage` with same `.save()` signature |
+| File storage | `app/storage.py` `LocalDiskStorage` writes to `data/uploads/`, served at `/files/...` (default, zero setup) | **implemented** - set `AZURE_STORAGE_CONNECTION_STRING` and the app switches to `AzureBlobStorage` automatically, same interface, no code change |
 | Database (Postgres) | SQLite file at `data/dev.db` | point `DATABASE_URL` at Postgres (compose service is pre-written, commented) |
+
+## File storage: local disk vs Azure Blob
+
+Picked automatically at startup, purely from env vars (`app/storage.py::build_storage()`):
+
+- **`AZURE_STORAGE_CONNECTION_STRING` unset (default)** -> `LocalDiskStorage`. Files land in
+  `UPLOAD_DIR`, served back at `/files/<candidate_id>/<filename>`. Nothing to configure.
+- **`AZURE_STORAGE_CONNECTION_STRING` set** -> `AzureBlobStorage`. Uploads go to the container
+  named by `AZURE_STORAGE_CONTAINER_NAME` (default `resumes`), created automatically if missing.
+  The container is **not** made public - resumes are personal data. `GET /api/candidates/{id}/resume-url`
+  returns a fresh, read-only **SAS link** valid for `RESUME_SAS_EXPIRY_MINUTES` (default 60);
+  re-call it rather than caching the `resume_url` on the candidate record indefinitely.
+  If Azure init fails (bad creds, no network) the app logs a warning and falls back to local
+  disk instead of refusing to start.
+
+No credential is ever hardcoded - only `.env` (git-ignored) or the server's real environment.
+See `.env.example` for the two variables an admin needs to set.
 
 ## Run it - Docker (what you hand to teammates)
 
@@ -99,7 +116,7 @@ backend/
     database.py       SQLAlchemy engine / session
     models_db.py      Candidate ORM row (skills/experience/education = JSON columns)
     schemas.py        Pydantic models = THE CONTRACT (mirrors shared-contracts/schema.json)
-    storage.py        LocalDiskStorage now; AzureBlobStorage later
+    storage.py        LocalDiskStorage / AzureBlobStorage, picked from env at startup
     extraction.py     MOCK extract_candidate(bytes) -> dict
     seed.py           loads mock-candidates.json on first boot (7-digit running ids)
     routers/

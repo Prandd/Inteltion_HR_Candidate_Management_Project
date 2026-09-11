@@ -98,6 +98,17 @@ def test_get_unknown_returns_404_envelope(client, auth):
     assert r.json()["data"] is None
 
 
+def test_resume_url_resolves_after_upload(client, auth):
+    up = client.post("/api/candidates/upload", headers=auth, files=_pdf("cv.pdf"))
+    cid = up.json()["data"]["created"][0]["candidate_id"]
+
+    r = client.get(f"/api/candidates/{cid}/resume-url", headers=auth)
+    assert r.status_code == 200
+    body = r.json()["data"]
+    assert body["filename"] == "cv.pdf"
+    assert body["resume_url"]  # local disk -> http://.../files/<id>/cv.pdf
+
+
 def test_upload_rejects_non_pdf_docx(client, auth):
     r = client.post(
         "/api/candidates/upload",

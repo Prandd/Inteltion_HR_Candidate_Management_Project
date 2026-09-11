@@ -25,17 +25,31 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480  # 8h
 
+    # ---- File storage. Empty connection string (the default) -> local disk,
+    # zero setup. Set AZURE_STORAGE_CONNECTION_STRING to switch to Azure Blob -
+    # see app/storage.py. Never hardcode the real value here. ----
+    azure_storage_connection_string: str = ""
+    azure_storage_container_name: str = "resumes"
+    resume_sas_expiry_minutes: int = 60  # how long a resolved resume link stays valid
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def using_azure_storage(self) -> bool:
+        return bool(self.azure_storage_connection_string)
 
 
 settings = Settings()
 
 
 def ensure_dirs() -> None:
-    """Create the local data / upload folders before anything touches them."""
-    os.makedirs(settings.upload_dir, exist_ok=True)
+    """Create the local data / upload folders before anything touches them.
+    Skips the upload folder entirely when Azure Blob is configured - nothing
+    is ever written to local disk in that mode."""
+    if not settings.using_azure_storage:
+        os.makedirs(settings.upload_dir, exist_ok=True)
     if settings.database_url.startswith("sqlite:///"):
         db_path = settings.database_url.replace("sqlite:///", "", 1)
         parent = os.path.dirname(db_path)

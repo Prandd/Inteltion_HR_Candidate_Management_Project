@@ -20,6 +20,11 @@ services:
       AUTH_USERNAME: admin
       AUTH_PASSWORD: password123
       JWT_SECRET: dev-secret-change-me
+      # ---- Real deploy: set these two (e.g. via `env_file: .env`, never inline
+      #      here) to switch resume storage from local disk to Azure Blob. Leave
+      #      AZURE_STORAGE_CONNECTION_STRING empty to keep local disk. ----
+      # AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
+      # AZURE_STORAGE_CONTAINER_NAME: resumes
     volumes:
       - ./backend/data:/app/data          # DB + uploaded CVs persist on the host
       - ./shared-contracts:/contracts:ro  # seed data, read-only
