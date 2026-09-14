@@ -6,6 +6,28 @@ This README is the **single setup guide** for all 4 lanes. Follow it once on Day
 
 ---
 
+## 0. Current Status (updated 14 Sep 2026)
+
+| Lane | Branch | State |
+|---|---|---|
+| 🟥 Backend (Member 3) | `feature/backend` | API complete — auth, CRUD, batch upload, filter/search, Azure Blob ready. **Not yet tested** (`pytest` still needs a run) |
+| 🟦 Dashboard (Member 1) | `feature/dashboard-frontend` | in progress |
+| 🟨 LLM extraction (Member 4) | `feature/llm-service-cv-parsing` | in progress |
+| 🟩 Upload/Edit (Member 2) | — | not started |
+
+### ⚠️ Backend API changed — Members 1 & 2 must update their fetch code
+
+1. Every `/api/candidates/*` request now needs `Authorization: Bearer <jwt>` (get one from `POST /api/auth/login`, `admin` / `password123`)
+2. `candidate_id` is now a 7-digit string (`"0000001"`), not a UUID
+3. New read-only field `upload_status` on every candidate
+4. `POST /api/candidates/upload` takes `files` (a repeatable list), and returns `{created[], failed[], count}`
+
+`shared-contracts/` is already updated to match — **re-pull it**.
+
+👉 **Full details, curl examples, and per-person to-do: [`backend/CHANGELOG.md`](backend/CHANGELOG.md)** (ภาษาไทย)
+
+---
+
 ## 1. Project Structure
 
 ```
@@ -140,13 +162,12 @@ For anyone who wants the whole system running at once (recommended for the Day 6
 docker compose up --build
 ```
 
-This starts:
-- **Postgres** on `localhost:5432`
-- **Backend (FastAPI)** on `localhost:8000` — docs at `localhost:8000/docs`
-- **Dashboard frontend** on `localhost:5173`
-- **Upload/Edit frontend** on `localhost:5174`
+**What actually runs today:**
+- **Backend (FastAPI)** on `localhost:8000` — interactive API docs at `localhost:8000/docs`, seeded with the 9 mock candidates automatically
 
-`docker-compose.yml` reads all values from your `.env` file — make sure it exists before running this command (Section 4.1).
+**No `.env` needed** — the backend ships working defaults (SQLite + local disk + `admin`/`password123`). The frontend services aren't in `docker-compose.yml` yet; run those with `npm run dev` per Section 6.
+
+Postgres is pre-written but commented out in `docker-compose.yml` — uncomment it and repoint `DATABASE_URL` when the team decides to switch.
 
 Stop everything:
 ```bash
@@ -171,8 +192,9 @@ npm install
 npm run dev
 ```
 - Runs on `http://localhost:5173`.
-- Set `VITE_USE_MOCK_DATA=true` in `frontend/dashboard/.env` to build against the static fake-candidate JSON (delivered by Member 3 on Day 1, found at `shared-contracts/mock-candidates.json`) instead of a live backend.
+- Set `VITE_USE_MOCK_DATA=true` in `frontend/dashboard/.env` to build against the static fake-candidate JSON (`shared-contracts/mock-candidates.json`) instead of a live backend.
 - No Azure secrets needed.
+- **Hitting the real API?** Log in first (`POST /api/auth/login`) and send `Authorization: Bearer <jwt>` on every `/api/candidates/*` call. Server-side filtering and search are available — see [`backend/CHANGELOG.md`](backend/CHANGELOG.md).
 
 ### 🟩 Member 2 — Upload/Edit Frontend
 ```bash
@@ -183,6 +205,7 @@ npm run dev
 - Runs on `http://localhost:5174`.
 - Same mock-data flag as Member 1 — build your upload flow and edit components against `shared-contracts/mock-candidates.json` and a mocked upload response.
 - No Azure secrets needed.
+- **Upload contract changed:** the multipart field is `files` (repeatable — multi-file upload is supported) and the response is `{created[], failed[], count}`. Render `failed[]` so the user sees which files were rejected. Details in [`backend/CHANGELOG.md`](backend/CHANGELOG.md).
 
 ### 🟥 Member 3 — Backend
 ```bash
@@ -193,8 +216,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 - Runs on `http://localhost:8000` (interactive API docs at `/docs`).
-- Needs a local Postgres instance — either run `docker compose up postgres` alone, or point `DATABASE_URL` at SQLite for faster local iteration (`sqlite:///./dev.db`) during early days, then switch to Postgres before Day 6 integration.
-- Needs `AZURE_STORAGE_CONNECTION_STRING` only once you build the real upload endpoint (Day 4) — before that, work against your hardcoded dummy extraction function per your sprint plan.
+- **No `.env` and no database setup needed** — defaults to SQLite at `backend/data/dev.db` and seeds itself from `shared-contracts/mock-candidates.json` on first boot. Copy `backend/.env.example` to `backend/.env` only to override something.
+- `AZURE_STORAGE_CONNECTION_STRING` is optional — leave it unset and CV files go to local disk. Set it and the app switches to Azure Blob automatically, no code change.
+- Tests: `pytest` from inside `backend/`.
+- See [`backend/CHANGELOG.md`](backend/CHANGELOG.md) for the full API surface and what's done vs. pending.
 
 ### 🟨 Member 4 — LLM Extraction Service
 ```bash
@@ -213,10 +238,19 @@ python run_test_harness.py      # runs your sample CVs through extraction and pr
 ## 7. Shared Contracts
 
 `shared-contracts/` holds the two files every lane depends on:
-- `schema.json` — the frozen candidate JSON schema (also mirrored as Pydantic models in `backend/app/models.py` and as a TypeScript type in `frontend/components/types.ts`)
-- `mock-candidates.json` — 8-10 static fake candidates matching the schema, delivered by Member 3 on Day 1 for both frontend lanes to build against
+- `schema.json` — the candidate JSON schema (mirrored as Pydantic models in `backend/app/schemas.py`, and to be mirrored as a TypeScript type in `frontend/components/types.ts`)
+- `mock-candidates.json` — 9 static fake candidates matching the schema, for both frontend lanes to build against
 
-**These files are frozen after Day 1.** Any change requires a same-day message to all 4 members before editing — a silent change here breaks 3 other people's work simultaneously.
+**Any change requires a same-day message to all 4 members before editing** — a silent change here breaks 3 other people's work simultaneously.
+
+**Revision history:**
+
+| When | What changed | Why |
+|---|---|---|
+| Day 1 | Initial freeze | — |
+| 10 Sep 2026 | `candidate_id` UUID → 7-digit running number (`"0000001"`); added `upload_status` (`Not Uploaded`/`Processing`/`Done`/`Failed`) | task-extension spec — see [`backend/CHANGELOG.md`](backend/CHANGELOG.md) |
+
+Note `status` (HR pipeline: `New`…`Archived`) and `upload_status` (file lifecycle) are **two separate fields** — don't mix them up.
 
 ---
 
@@ -225,7 +259,10 @@ python run_test_harness.py      # runs your sample CVs through extraction and pr
 | Problem | Likely Fix |
 |---|---|
 | Frontend can't reach backend (CORS error) | Confirm `CORS_ORIGINS` in backend `.env` includes your frontend's port (`5173`/`5174`) |
-| `docker compose up` fails on Postgres | Run `docker compose down -v` to clear a stale volume, then retry |
+| API returns `401` on every call | Missing/expired token — `POST /api/auth/login` and send `Authorization: Bearer <jwt>` (tokens last 8h) |
+| Candidate not found / IDs look wrong | `candidate_id` is now `"0000001"`, not a UUID. It's a **string** — don't `parseInt` it, the leading zeros matter |
+| `docker compose up --build` fails during `pip install` | Seen on an unstable Docker Desktop/WSL2 VM (random segfaults). `wsl --shutdown`, restart Docker Desktop, raise its memory to ≥ 4 GB, retry |
+| Stale data after pulling the new backend | The old `dev.db` still has UUID ids — `docker compose down -v`, or delete `backend/data/` |
 | Azure OpenAI 401/403 error | Double-check `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` — no trailing slash mismatches, no quotes around values in `.env` |
 | Azure Blob upload fails | Re-verify the assembled connection string format in Section 4.2 — a missing `;` between fields is the most common mistake |
 | `npm install` fails | Confirm Node 20.x with `node --version`; delete `node_modules` + `package-lock.json` and retry |

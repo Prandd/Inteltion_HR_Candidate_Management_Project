@@ -1,5 +1,10 @@
 # backend/ - Inteltion HR Candidate API (MVP, Member 3)
 
+> 📋 **Teammates:** see [`CHANGELOG.md`](CHANGELOG.md) (ภาษาไทย) for what's been built, what
+> changed in the API contract, curl examples, and what each lane needs to update.
+>
+> ⚠️ **Nothing here has been run yet** — `pytest` still needs to pass before this merges to `main`.
+
 FastAPI + SQLite + local disk. **Everything external is mocked** for this sprint:
 
 | External thing | This week | Real deploy |
