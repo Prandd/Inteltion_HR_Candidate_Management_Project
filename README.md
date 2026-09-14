@@ -10,7 +10,7 @@ This README is the **single setup guide** for all 4 lanes. Follow it once on Day
 
 | Lane | Branch | State |
 |---|---|---|
-| 🟥 Backend (Member 3) | `feature/backend` | API complete — auth, CRUD, batch upload, filter/search, Azure Blob ready. **Not yet tested** (`pytest` still needs a run) |
+| 🟥 Backend (Member 3) | `feature/backend` | API complete and **tested** — 15/15 `pytest` + a full live run (auth, CRUD, batch upload, filter/search, Azure Blob ready) |
 | 🟦 Dashboard (Member 1) | `feature/dashboard-frontend` | in progress |
 | 🟨 LLM extraction (Member 4) | `feature/llm-service-cv-parsing` | in progress |
 | 🟩 Upload/Edit (Member 2) | — | not started |

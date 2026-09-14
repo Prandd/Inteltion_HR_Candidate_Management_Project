@@ -3,7 +3,9 @@
 > 📋 **Teammates:** see [`CHANGELOG.md`](CHANGELOG.md) (ภาษาไทย) for what's been built, what
 > changed in the API contract, curl examples, and what each lane needs to update.
 >
-> ⚠️ **Nothing here has been run yet** — `pytest` still needs to pass before this merges to `main`.
+> ✅ **Tested** — 15/15 `pytest` cases pass, plus a full live run against `uvicorn`
+> (auth, filter/search, batch upload, resume-url, delete). Not yet verified: a real Azure
+> Storage Account, and the Docker image build (broken on the author's machine only — see CHANGELOG).
 
 FastAPI + SQLite + local disk. **Everything external is mocked** for this sprint:
 

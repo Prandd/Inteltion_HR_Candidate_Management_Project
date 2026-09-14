@@ -20,20 +20,41 @@
 
 ---
 
-## ⚠️ ข้อควรระวัง: โค้ดยังไม่เคยรันเลยสักครั้ง
+## ✅ สถานะการทดสอบ (14 ก.ย. 2026)
 
-พูดตรง ๆ ครับ — **เขียนเสร็จแต่ยังไม่ได้เทส** เพราะ:
-- เครื่องผมไม่มี Python (ยังลงไม่ได้)
-- Docker Desktop / WSL2 บนเครื่องผมพัง — `pip install` ตอน build container **segfault** แบบสุ่ม (ลองแล้ว 5 รอบ error คนละแบบทุกครั้ง) เป็นปัญหาที่ตัว VM ไม่ใช่โค้ด
-- ส่วน Azure Blob ก็ยังไม่เคยต่อกับ Storage Account จริง
+**เทสผ่านหมดแล้วครับ** รันจริงบน Python 3.11.9 (Windows):
 
-**ใครมี Python ในเครื่องช่วยรันให้หน่อยได้ไหมครับ:**
-```bash
-cd backend
-pip install -r requirements.txt
-pytest -q
 ```
-มี test อยู่ 15 เคส ถ้าผ่านหมดผมสบายใจขึ้นเยอะ ถ้าพังตรงไหนบอกได้เลยเดี๋ยวแก้ให้
+15 passed in 0.56s
+```
+
+นอกจาก unit test ยังลองยิง API จริงผ่าน `uvicorn` ทั้งชุด ผ่านหมด:
+
+| เทสอะไร | ผล |
+|---|---|
+| `/health` | ✅ |
+| login แล้วได้ JWT | ✅ |
+| ยิง API โดยไม่มี token → ต้องได้ 401 | ✅ |
+| list ข้อมูล seed 9 คน id `0000001`–`0000009` | ✅ |
+| ค้นหา `?q=airflow` | ✅ เจอ 4 คน (ค้นใน tools ด้วย) |
+| อัปโหลด 2 ไฟล์พร้อมกัน | ✅ ได้ id ต่อเนื่อง `0000010`, `0000011` |
+| อัปชุดผสม (pdf ดี 1 + txt เสีย 1) | ✅ `created=1, failed=1` ไฟล์ดีไม่โดนหางเลข |
+| `resume-url` + เปิดไฟล์จริงที่ `/files/...` | ✅ 200 |
+| ลบ candidate ที่ `upload_status=Done` | ✅ |
+| Swagger UI `/docs` | ✅ 200 |
+
+### 🐛 เจอบั๊กตอนเทส แล้วแก้แล้ว
+
+**`pytest` เขียนทับ database จริง** — test ที่สร้าง row id `8000001` ทำให้เลขรัน candidate **พังถาวร**
+(เพราะระบบใช้ max+1 พออัปไฟล์ใหม่เลยกระโดดจาก `0000013` ไป `8000002`) แถมยังไปแก้ชื่อคนใน seed ด้วย
+
+แก้โดยเพิ่ม `backend/tests/conftest.py` ให้ test ใช้ database ชั่วคราวแยกต่างหาก
+→ ตอนนี้รัน `pytest` กี่รอบก็ไม่แตะข้อมูล dev แล้ว
+
+### ⚠️ ที่ยังไม่ได้เทส
+
+- **Azure Blob กับ Storage Account จริง** — ยังไม่เคยลอง (ต้องมี connection string จริงก่อน)
+- **Docker บนเครื่องผมพัง** เลย build image ไม่ได้ — **แต่เป็นปัญหาเครื่องผมคนเดียว ไม่ใช่โค้ด** (ดูหัวข้อถัดไป)
 
 ---
 
@@ -46,6 +67,11 @@ docker compose up --build
 - API: http://localhost:8000 · Swagger UI (ลองยิง API ได้ในเว็บเลย): http://localhost:8000/docs
 - มีข้อมูล mock 9 คนใส่ให้อัตโนมัติ ไม่ต้องตั้ง `.env` อะไรเลย
 - ล้างข้อมูลเริ่มใหม่: `docker compose down -v`
+
+> 🙏 **ฝากช่วยเทสหน่อยครับ** — Docker บนเครื่องผมพัง (WSL2 VM เพี้ยน `pip install` ข้างใน container
+> error มั่วแบบเป็นไปไม่ได้ ลองแล้ว 6 รอบ error คนละแบบทุกครั้ง reboot ก็ไม่หาย) เป็นปัญหาเครื่องผมล้วน ๆ
+> ไม่เกี่ยวกับโค้ด — พิสูจน์ได้เพราะโค้ดชุดเดียวกันรันบน Python ตรง ๆ ผ่านหมด 15 เคส
+> **ใครลอง `docker compose up --build` แล้วขึ้นได้ช่วยบอกทีครับ** จะได้รู้ว่าทางนี้ใช้ได้จริงสำหรับ demo
 
 ### Python ตรง ๆ (แก้โค้ดแล้วเห็นผลเร็วกว่า)
 ```bash
@@ -266,8 +292,9 @@ extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict
 
 | เรื่อง | สถานะ |
 |---|---|
-| รัน `pytest` ให้ผ่านจริง | ❌ **ยังไม่ได้ทำ** — ต้องทำก่อน merge เข้า main |
-| ทดสอบกับ Azure Storage Account จริง | ❌ ยังไม่เคยลอง |
+| รัน `pytest` ให้ผ่าน | ✅ **ผ่านแล้ว 15/15** + ยิง API จริงผ่าน uvicorn ครบทุก endpoint |
+| build Docker image | ⚠️ เครื่องผมพัง (ปัญหา WSL2 ไม่ใช่โค้ด) — **ฝากคนอื่นลองให้หน่อย** |
+| ทดสอบกับ Azure Storage Account จริง | ❌ ยังไม่เคยลอง (รอ connection string จริง) |
 | ต่อกับ LLM ตัวจริงของ Member 4 | ❌ ยังใช้ mock อยู่ (แก้ import บรรทัดเดียว) |
 | ย้ายไป Postgres | ยังเป็น SQLite (เขียน service ไว้ใน `docker-compose.yml` แล้ว comment ไว้) |
 | `Processing` เป็นช่วงสั้นมาก | ตอนนี้สกัดข้อมูลแบบ sync เสร็จในคำขอเดียว → ปุ่ม cancel ตอน `Processing` แทบกดไม่ทัน ต้องทำเป็น background task ทีหลังถึงจะใช้งานได้จริง |
@@ -292,7 +319,9 @@ backend/
     routers/
       auth.py        POST /api/auth/login
       candidates.py  ที่เหลือทั้งหมด
-  tests/test_smoke.py   15 เคส (ยังไม่ได้รัน)
+  tests/
+    conftest.py         บังคับให้ test ใช้ DB ชั่วคราว ไม่แตะข้อมูล dev
+    test_smoke.py       15 เคส (ผ่านหมดแล้ว)
   .env.example          ตัวแปรทั้งหมดที่ตั้งได้
 shared-contracts/
   schema.json           สัญญา JSON ของ candidate
