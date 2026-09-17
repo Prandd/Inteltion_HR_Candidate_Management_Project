@@ -77,6 +77,17 @@ function UploadCandidate(){
 
 
 
+    const [
+
+        stage,
+
+        setStage
+
+    ] = useState("");
+
+
+
+
 
 
 
@@ -171,6 +182,12 @@ function UploadCandidate(){
 
 
 
+        setStage(
+            "Preparing files..."
+        );
+
+
+
 
 
         for(
@@ -204,7 +221,7 @@ function UploadCandidate(){
             navigate("/");
 
 
-        },800);
+        },1000);
 
 
 
@@ -218,29 +235,293 @@ function UploadCandidate(){
 
 
 
+    
     async function uploadSingle(
 
-        index:number
+    index:number
 
-    ){
-
-
-
-        const item = files[index];
+){
 
 
-
-        const formData = new FormData();
+    const item = files[index];
 
 
 
-        formData.append(
+    const formData = new FormData();
 
-            "file",
 
-            item.file
+
+    formData.append(
+
+        "file",
+
+        item.file
+
+    );
+
+
+
+
+
+    updateFile(
+
+        index,
+
+        {
+
+            status:"uploading",
+
+            progress:5
+
+        }
+
+    );
+
+
+
+
+
+    setStage(
+
+        "Uploading resume..."
+
+    );
+
+
+
+
+
+    try{
+
+
+
+        await api.post(
+
+
+            "/candidates/upload",
+
+
+            formData,
+
+
+            {
+
+
+                headers:{
+
+
+                    "Content-Type":
+
+                    "multipart/form-data"
+
+
+                },
+
+
+
+                onUploadProgress:(event)=>{
+
+
+                    const percent = Math.round(
+
+
+                        (
+
+                        event.loaded *
+
+                        30
+
+                        )
+
+                        /
+
+                        (
+
+                        event.total || 1
+
+                        )
+
+
+                    );
+
+
+
+
+
+                    updateFile(
+
+                        index,
+
+                        {
+
+
+                            progress:
+
+                            Math.min(
+
+                                percent,
+
+                                30
+
+                            )
+
+
+                        }
+
+                    );
+
+
+                }
+
+
+            }
+
+
 
         );
+
+
+
+
+
+
+
+
+        // STEP 2
+
+        setStage(
+
+            "Extracting CV information..."
+
+        );
+
+
+
+        updateFile(
+
+            index,
+
+            {
+
+                progress:55
+
+            }
+
+        );
+
+
+
+
+
+
+
+        await new Promise(resolve=>
+
+            setTimeout(
+
+                resolve,
+
+                800
+
+            )
+
+        );
+
+
+
+
+
+
+
+
+        // STEP 3
+
+        setStage(
+
+            "AI analyzing candidate profile..."
+
+        );
+
+
+
+        updateFile(
+
+            index,
+
+            {
+
+                progress:75
+
+            }
+
+        );
+
+
+
+
+
+
+
+        await new Promise(resolve=>
+
+            setTimeout(
+
+                resolve,
+
+                1200
+
+            )
+
+        );
+
+
+
+
+
+
+
+
+        // STEP 4
+
+        setStage(
+
+            "Saving candidate profile..."
+
+        );
+
+
+
+        updateFile(
+
+            index,
+
+            {
+
+                progress:90
+
+            }
+
+        );
+
+
+
+
+
+
+
+        await new Promise(resolve=>
+
+            setTimeout(
+
+                resolve,
+
+                700
+
+            )
+
+        );
+
+
 
 
 
@@ -254,9 +535,9 @@ function UploadCandidate(){
 
             {
 
-                status:"uploading",
+                progress:100,
 
-                progress:5
+                status:"success"
 
             }
 
@@ -265,146 +546,55 @@ function UploadCandidate(){
 
 
 
+        setStage(
 
+            "Completed successfully"
 
+        );
 
 
-        try{
 
-
-
-            await api.post(
-
-
-                "/candidates/upload",
-
-
-                formData,
-
-
-                {
-
-                    headers:{
-
-
-                        "Content-Type":
-
-                        "multipart/form-data"
-
-
-                    },
-
-
-
-                    onUploadProgress(e){
-
-
-
-                        const progress =
-
-                        Math.round(
-
-
-                            (
-
-                                e.loaded * 100
-
-                            )
-
-                            /
-
-                            (
-
-                                e.total || 1
-
-                            )
-
-
-                        );
-
-
-
-                        updateFile(
-
-                            index,
-
-                            {
-
-                                progress
-
-                            }
-
-                        );
-
-
-                    }
-
-
-                }
-
-
-
-            );
-
-
-
-
-
-
-
-            updateFile(
-
-                index,
-
-                {
-
-
-                    progress:100,
-
-
-                    status:"success"
-
-
-                }
-
-
-            );
-
-
-
-
-
-        }
-
-
-        catch(error){
-
-
-
-            console.error(error);
-
-
-
-            updateFile(
-
-                index,
-
-                {
-
-                    status:"error"
-
-                }
-
-            );
-
-
-
-        }
 
 
 
     }
 
+
+
+    catch(error){
+
+
+
+        console.error(error);
+
+
+
+        updateFile(
+
+            index,
+
+            {
+
+                status:"error"
+
+            }
+
+        );
+
+
+
+        setStage(
+
+            "Upload failed"
+
+        );
+
+
+
+    }
+
+
+}
 
 
 
@@ -537,10 +727,6 @@ function UploadCandidate(){
 
 
 
-                {/* HEADER */}
-
-
-
                 <div>
 
 
@@ -624,10 +810,6 @@ function UploadCandidate(){
 
 
 
-
-
-
-                {/* UPLOAD BOX */}
 
 
 
@@ -804,10 +986,6 @@ function UploadCandidate(){
 
 
 
-                    {/* FILE LIST */}
-
-
-
                     <div className="mt-6 space-y-3">
 
 
@@ -867,43 +1045,7 @@ function UploadCandidate(){
 
 
 
-                                    <p
-
-
-                                        className={`
-
-                                        text-xs
-
-                                        mt-1
-
-
-                                        ${
-
-                                        item.status==="success"
-
-                                        ?
-
-                                        "text-green-600"
-
-                                        :
-
-                                        item.status==="error"
-
-                                        ?
-
-                                        "text-red-600"
-
-                                        :
-
-                                        "text-gray-500"
-
-                                        }
-
-                                        `}
-
-
-                                    >
-
+                                    <p className="text-xs mt-1 text-gray-500">
 
 
                                         {
@@ -924,7 +1066,7 @@ function UploadCandidate(){
 
                                         &&
 
-                                        `Uploading ${item.progress}%`
+                                        `Processing ${item.progress}%`
 
                                         }
 
@@ -1036,6 +1178,8 @@ function UploadCandidate(){
 
                                     transition-all
 
+                                    duration-300
+
                                     "
 
                                     style={{
@@ -1067,6 +1211,44 @@ function UploadCandidate(){
 
 
                     </div>
+
+
+
+
+
+
+
+
+
+                    {
+
+                    uploading &&
+
+
+                    <p
+
+
+                        className="
+
+                        text-center
+
+                        text-sm
+
+                        text-gray-500
+
+                        mt-4
+
+                        "
+
+                    >
+
+                        {stage}
+
+
+                    </p>
+
+
+                    }
 
 
 
@@ -1123,7 +1305,7 @@ function UploadCandidate(){
 
                         ?
 
-                        "Uploading..."
+                        "Processing..."
 
                         :
 

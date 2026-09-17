@@ -1,7 +1,8 @@
 import {
     BrowserRouter,
     Routes,
-    Route
+    Route,
+    Navigate
 } from "react-router-dom";
 
 
@@ -19,6 +20,56 @@ import Positions from "./pages/Positions";
 import PositionRequirements from "./pages/PositionRequirements";
 
 import Login from "./pages/Login";
+import PositionDetail from "./pages/PositionDetail";
+
+
+
+
+function ProtectedRoute({
+
+    children
+
+}:{
+
+    children:React.ReactNode;
+
+}){
+
+
+    const isAuthenticated =
+
+        localStorage.getItem(
+            "inteltion_auth"
+        );
+
+
+
+    if(!isAuthenticated){
+
+
+        return (
+
+            <Navigate
+
+                to="/login"
+
+                replace
+
+            />
+
+        );
+
+
+    }
+
+
+
+    return children;
+
+
+}
+
+
 
 
 
@@ -40,9 +91,7 @@ function App(){
 
 
 
-
                 {/* LOGIN */}
-
 
 
                 <Route
@@ -68,7 +117,7 @@ function App(){
 
 
 
-                {/* APPLICATION */}
+                {/* PROTECTED APPLICATION */}
 
 
 
@@ -77,7 +126,15 @@ function App(){
 
                     element={
 
-                        <Layout/>
+
+                        <ProtectedRoute>
+
+
+                            <Layout/>
+
+
+                        </ProtectedRoute>
+
 
                     }
 
@@ -85,14 +142,6 @@ function App(){
                 >
 
 
-
-
-
-                    {/* Dashboard
-
-                        Dashboard = Candidate Pipeline Board
-
-                    */}
 
 
 
@@ -119,10 +168,6 @@ function App(){
 
 
 
-                    {/* Candidate Detail */}
-
-
-
                     <Route
 
 
@@ -140,13 +185,6 @@ function App(){
 
 
 
-
-
-
-
-
-
-                    {/* Upload CV */}
 
 
 
@@ -173,10 +211,6 @@ function App(){
 
 
 
-                    {/* Positions */}
-
-
-
                     <Route
 
 
@@ -193,14 +227,20 @@ function App(){
                     />
 
 
+                        <Route
+
+                        path="/positions/:id"
+
+                        element={
+
+                        <PositionDetail/>
+
+                    }
+
+                    />
 
 
 
-
-
-
-
-                    {/* Create Position */}
 
 
 

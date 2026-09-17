@@ -1,244 +1,386 @@
-# Inteltion HR Candidate Management — 7-Day MVP
+# Inteltion HR Candidate Management --- 7-Day MVP
 
-A web-based system that uploads a CV, extracts structured candidate data via an LLM, and displays it on an HR dashboard with inline editing.
+A web-based system that uploads a CV, extracts structured candidate data
+via an LLM, and displays it on an HR dashboard with inline editing and
+candidate pipeline management.
 
-This README is the **single setup guide** for all 4 lanes. Follow it once on Day 1 and every member should be able to run the full stack locally.
+This README is the single setup guide for all team members. Follow it to
+run the full stack locally and understand the current system workflow.
 
----
+------------------------------------------------------------------------
 
-## 1. Project Structure
+# 1. Project Structure
 
-```
-Inteltion_HR_Candidate_Management_Project/
-├── frontend/
-│   ├── dashboard/        # Member 1 — HR Dashboard (list + detail views)
-│   ├── upload-edit/      # Member 2 — Upload flow + edit forms
-│   └── components/       # Shared edit-input components (owned by Member 2, imported by Member 1)
-├── backend/              # Member 3 — FastAPI app, DB, file handling
-├── llm-service/          # Member 4 — CV extraction engine (LLM + parsing)
-├── shared-contracts/     # Frozen JSON schema + API contract (touched by all 4, reviewed before edits)
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
+    Inteltion_HR_Candidate_Management_Project/
 
-**Folder discipline (Section 2.5 of the sprint plans):** work only inside your own folder. `shared-contracts/` is the one shared file set — changes go through a quick team heads-up, not a silent edit.
+    ├── frontend/
+    │   ├── dashboard/        # HR Dashboard, login, candidate list/detail views
+    │   ├── upload-edit/      # Upload flow + edit forms
+    │   └── components/       # Shared frontend components
+    │
+    ├── backend/              # FastAPI app, DB, file handling, candidate APIs
+    ├── llm-service/          # CV extraction engine (LLM + parsing)
+    ├── shared-contracts/     # Shared schema and API contracts
+    ├── docker-compose.yml
+    ├── .env.example
+    └── README.md
 
----
+------------------------------------------------------------------------
 
-## 2. Prerequisites
+# 2. Authentication
 
-Install these before Day 1 kickoff:
+The system requires authentication before accessing the HR dashboard.
 
-| Tool | Version | Purpose |
-|---|---|---|
-| [Git](https://git-scm.com/) | latest | Version control |
-| [Node.js](https://nodejs.org/) | 20.x LTS | Frontend (React + Vite) |
-| [Python](https://www.python.org/) | 3.11+ | Backend (FastAPI) + LLM service |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | latest | Local Postgres + one-command full-stack run |
-| A code editor | — | VS Code recommended (consistent extensions across the team: ESLint, Python, Docker) |
+## Current Implementation
 
-Verify installs:
-```bash
-git --version
-node --version
-python3 --version
-docker --version
-docker compose version
-```
+-   Frontend MVP authentication
+-   Login page
+-   Logout through user profile dropdown
+-   Authentication state stored using localStorage
 
----
+Flow:
 
-## 3. Clone the Repo
+    Login
+      |
+      v
+    Authentication Check
+      |
+      v
+    Dashboard
 
-```bash
-git clone https://github.com/Prandd/Inteltion_HR_Candidate_Management_Project.
-cd Inteltion_HR_Candidate_Management_Project
-```
+Logout:
 
----
+    Profile Dropdown
+            |
+            v
+    Remove Authentication State
+            |
+            v
+    Redirect to Login
 
-## 4. Environment Variables & Secrets (Read This Before Anything Else)
+------------------------------------------------------------------------
 
-Inteltion has provided the team with:
-- **Azure OpenAI** access: `CV_SCORING_PROVIDER`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_STORAGE_CONNECTION_STRING_FILE`
-- An `azure-storage-connection-string.txt` file containing `DefaultEndpointsProtocol`, `EndpointSuffix`, `AccountName`, `AccountKey`
+# 3. Dashboard Features
 
-### 🔒 Critical rule: none of these values are ever committed to Git
-`.gitignore` already excludes `.env` and any `*.txt` secrets file — double check this before your first commit:
+## Candidate Search
 
-```gitignore
-.env
-.env.*
-!.env.example
-azure-storage-connection-string.txt
-```
+Users can search candidates by:
 
-### 4.1 Create your local `.env`
-Copy the template and fill in the real values shared privately by the team lead (Slack DM or a password manager — **never** in a group chat or committed file):
+-   Candidate name
+-   Email
+-   Skills
 
-```bash
-cp .env.example .env
-```
+## Candidate Filtering
 
-`.env.example` (already in the repo, safe to commit — placeholders only):
+Available filters:
 
-```env
-# --- LLM / Azure OpenAI (Member 4, used inside llm-service) ---
-CV_SCORING_PROVIDER=azure_openai
-AZURE_OPENAI_ENDPOINT=https://<your-resource-name>.openai.azure.com/
-AZURE_OPENAI_API_KEY=<paste-from-team-lead>
-AZURE_OPENAI_DEPLOYMENT=<your-deployment-name>
+-   Minimum experience years
+-   Position
 
-# --- Azure Blob Storage (Member 3, used inside backend for file uploads) ---
-AZURE_STORAGE_CONNECTION_STRING_FILE=<paste-full-connection-string-here>
+## Candidate Sorting
 
-# --- Backend ---
-DATABASE_URL=postgresql://inteltion:inteltion@localhost:5432/inteltion_mvp
-CORS_ORIGINS=http://localhost:5173,http://localhost:5174
+Candidates can be sorted by:
 
-# --- Frontend (Vite exposes only VITE_-prefixed vars) ---
-VITE_API_BASE_URL=http://localhost:8000
-VITE_USE_MOCK_DATA=true
-```
+-   Latest Import
+-   Oldest Import
+-   Name A-Z
+-   Name Z-A
 
-### 4.2 Building the Azure Storage connection string
-The `azure-storage-connection-string.txt` file Inteltion provided contains four separate fields. Combine them into a **single connection string** for `AZURE_STORAGE_CONNECTION_STRING_FILE` in this exact format:
+Sorting process:
 
-```
-DefaultEndpointsProtocol=<value>;AccountName=<value>;AccountKey=<value>;EndpointSuffix=<value>
-```
+    Candidates
+        |
+        v
+    Search / Filter
+        |
+        v
+    Sorting
+        |
+        v
+    Dashboard Board / Table
 
-Example (values are illustrative, not real):
-```
-DefaultEndpointsProtocol=https;AccountName=inteltionstorage;AccountKey=abc123...==;EndpointSuffix=core.windows.net
-```
+------------------------------------------------------------------------
 
-Paste the fully-assembled string as the value of `AZURE_STORAGE_CONNECTION_STRING_FILE` in your `.env`. Only Member 3 (backend) and Member 4 (if testing upload-to-blob directly) need this value locally — the two frontend lanes never touch Azure credentials at all.
+# 4. Candidate Upload Flow
 
-### 4.3 Who needs which secret
+The CV upload process consists of multiple stages:
 
-| Variable | Needed by | Where it's used |
-|---|---|---|
-| `CV_SCORING_PROVIDER` | Member 4 | `llm-service/` — selects the LLM provider path |
-| `AZURE_OPENAI_ENDPOINT` | Member 4 | `llm-service/` — API base URL |
-| `AZURE_OPENAI_API_KEY` | Member 4 | `llm-service/` — auth |
-| `AZURE_OPENAI_DEPLOYMENT` | Member 4 | `llm-service/` — model deployment name |
-| `AZURE_STORAGE_CONNECTION_STRING_FILE` | Member 3 | `backend/` — stores uploaded CV files in Blob |
-| `DATABASE_URL` | Member 3 | `backend/` — Postgres connection |
-| `VITE_API_BASE_URL` / `VITE_USE_MOCK_DATA` | Members 1 & 2 | frontend `.env` — points at real API or mock data |
+    Upload CV
 
-**Members 1 and 2 do not need any Azure secrets.** You build entirely against mock data this week — see Section 6.
+        |
+        v
 
----
+    Uploading resume
 
-## 5. Running the Full Stack (Docker Compose)
+        |
+        v
 
-For anyone who wants the whole system running at once (recommended for the Day 6 integration session and the Day 7 demo):
+    Extracting CV information
 
-```bash
+        |
+        v
+
+    AI analyzing candidate profile
+
+        |
+        v
+
+    Saving candidate profile
+
+        |
+        v
+
+    Completed
+
+The progress bar represents the complete CV processing pipeline, not
+only file transfer progress.
+
+------------------------------------------------------------------------
+
+# 5. Candidate Detail Management
+
+Candidate detail page supports:
+
+-   View extracted candidate information
+-   View skills and experience
+-   Update candidate status
+-   Download resume
+-   Delete candidate
+
+------------------------------------------------------------------------
+
+# 6. AI Extraction Confidence
+
+The candidate score shown in the system represents:
+
+    extraction_confidence
+
+Meaning:
+
+-   Confidence level of LLM CV information extraction
+
+Example:
+
+    0.85 = 85% extraction confidence
+
+Important:
+
+This value is NOT a candidate-job matching score.
+
+It does not represent candidate suitability for a position.
+
+------------------------------------------------------------------------
+
+# 7. Candidate Delete API
+
+## Delete Candidate
+
+Method:
+
+    DELETE /candidates/{candidate_id}
+
+Purpose:
+
+Remove a candidate record from the system.
+
+------------------------------------------------------------------------
+
+# 8. Running the Full Stack
+
+## Docker Compose
+
+Start all services:
+
+``` bash
 docker compose up --build
 ```
 
-This starts:
-- **Postgres** on `localhost:5432`
-- **Backend (FastAPI)** on `localhost:8000` — docs at `localhost:8000/docs`
-- **Dashboard frontend** on `localhost:5173`
-- **Upload/Edit frontend** on `localhost:5174`
+Services:
 
-`docker-compose.yml` reads all values from your `.env` file — make sure it exists before running this command (Section 4.1).
+-   PostgreSQL
+-   Backend FastAPI
+-   Dashboard frontend
+-   Upload/Edit frontend
 
-Stop everything:
-```bash
+Stop:
+
+``` bash
 docker compose down
 ```
 
-Reset the database (wipes local data, safe during dev):
-```bash
+Reset database:
+
+``` bash
 docker compose down -v
 ```
 
----
+------------------------------------------------------------------------
 
-## 6. Per-Lane Local Setup (Work in Isolation, Day 2 Onward)
+# 9. Local Development
 
-You don't need Docker running to build your own lane. Each member should be able to develop independently against mocks — that's the whole point of the sprint structure.
+## Dashboard Frontend
 
-### 🟦 Member 1 — Dashboard Frontend
-```bash
+``` bash
 cd frontend/dashboard
+
 npm install
+
 npm run dev
 ```
-- Runs on `http://localhost:5173`.
-- Set `VITE_USE_MOCK_DATA=true` in `frontend/dashboard/.env` to build against the static fake-candidate JSON (delivered by Member 3 on Day 1, found at `shared-contracts/mock-candidates.json`) instead of a live backend.
-- No Azure secrets needed.
 
-### 🟩 Member 2 — Upload/Edit Frontend
-```bash
-cd frontend/upload-edit
-npm install
-npm run dev
-```
-- Runs on `http://localhost:5174`.
-- Same mock-data flag as Member 1 — build your upload flow and edit components against `shared-contracts/mock-candidates.json` and a mocked upload response.
-- No Azure secrets needed.
+Runs on:
 
-### 🟥 Member 3 — Backend
-```bash
+    http://localhost:5173
+
+## Backend
+
+``` bash
 cd backend
+
 python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+
+source venv/bin/activate
+
 pip install -r requirements.txt
+
 uvicorn app.main:app --reload --port 8000
 ```
-- Runs on `http://localhost:8000` (interactive API docs at `/docs`).
-- Needs a local Postgres instance — either run `docker compose up postgres` alone, or point `DATABASE_URL` at SQLite for faster local iteration (`sqlite:///./dev.db`) during early days, then switch to Postgres before Day 6 integration.
-- Needs `AZURE_STORAGE_CONNECTION_STRING_FILE` only once you build the real upload endpoint (Day 4) — before that, work against your hardcoded dummy extraction function per your sprint plan.
 
-### 🟨 Member 4 — LLM Extraction Service
-```bash
+Backend:
+
+    http://localhost:8000
+
+API Docs:
+
+    http://localhost:8000/docs
+
+## LLM Service
+
+``` bash
 cd llm-service
+
 python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+
+source venv/bin/activate
+
 pip install -r requirements.txt
-python run_test_harness.py      # runs your sample CVs through extraction and prints results
+
+python run_test_harness.py
 ```
-- No server to run this week — you're building an importable function (`extract_candidate()`), not a standalone service.
-- Needs `CV_SCORING_PROVIDER`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` in your `.env` from Day 2 onward.
-- Test against local sample CVs in `llm-service/sample_cvs/` — add a few real or synthetic files here on Day 1.
 
----
+------------------------------------------------------------------------
 
-## 7. Shared Contracts
+# 10. Environment Variables
 
-`shared-contracts/` holds the two files every lane depends on:
-- `schema.json` — the frozen candidate JSON schema (also mirrored as Pydantic models in `backend/app/models.py` and as a TypeScript type in `frontend/components/types.ts`)
-- `mock-candidates.json` — 8-10 static fake candidates matching the schema, delivered by Member 3 on Day 1 for both frontend lanes to build against
+Required Azure OpenAI variables:
 
-**These files are frozen after Day 1.** Any change requires a same-day message to all 4 members before editing — a silent change here breaks 3 other people's work simultaneously.
+    CV_SCORING_PROVIDER
+    AZURE_OPENAI_ENDPOINT
+    AZURE_OPENAI_API_KEY
+    AZURE_OPENAI_DEPLOYMENT
 
----
+Azure Storage:
 
-## 8. Quick Troubleshooting
+    AZURE_STORAGE_CONNECTION_STRING_FILE
 
-| Problem | Likely Fix |
-|---|---|
-| Frontend can't reach backend (CORS error) | Confirm `CORS_ORIGINS` in backend `.env` includes your frontend's port (`5173`/`5174`) |
-| `docker compose up` fails on Postgres | Run `docker compose down -v` to clear a stale volume, then retry |
-| Azure OpenAI 401/403 error | Double-check `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT` — no trailing slash mismatches, no quotes around values in `.env` |
-| Azure Blob upload fails | Re-verify the assembled connection string format in Section 4.2 — a missing `;` between fields is the most common mistake |
-| `npm install` fails | Confirm Node 20.x with `node --version`; delete `node_modules` + `package-lock.json` and retry |
-| Backend can't find `AZURE_STORAGE_CONNECTION_STRING_FILE` | Confirm `.env` exists in `backend/` (or the repo root, depending on your `docker-compose.yml` setup) and isn't named `.env.example` |
+Backend:
 
----
+    DATABASE_URL
+    CORS_ORIGINS
 
-## 9. Team Conventions
+Frontend:
 
-- **Branching:** `feature/<lane>-<short-description>` (e.g., `feature/dashboard-candidate-cards`).
-- **Commits:** stay inside your own folder; if you need to touch `shared-contracts/`, say so in the team channel first.
-- **Daily standup:** 15 minutes, written — what I shipped / what I'm doing / what contract I need from someone else.
-- **Never commit:** `.env`, `azure-storage-connection-string.txt`, or any file containing a real API key or connection string.
+    VITE_API_BASE_URL
+    VITE_USE_MOCK_DATA
 
----
-*If you get stuck for more than 15 minutes on setup, post in the team channel immediately — a blocked Day 1 or Day 2 has no slack left to recover in a 7-day sprint.*
+Never commit:
+
+    .env
+    *.env
+    azure-storage-connection-string.txt
+    API keys
+    connection strings
+
+------------------------------------------------------------------------
+
+# 11. Shared Contracts
+
+The shared contract contains:
+
+-   Candidate schema
+-   API contract
+-   Mock candidate data
+
+Any changes to shared contracts must be communicated to all team members
+before editing.
+
+------------------------------------------------------------------------
+
+# 12. Development Notes
+
+Current dashboard data flow:
+
+    Candidate API
+
+          |
+
+          v
+
+    Search / Filter
+
+          |
+
+          v
+
+    Sorting
+
+          |
+
+          v
+
+    Board / Table Display
+
+When modifying candidate schema, API responses, or shared contracts,
+notify other team members to avoid integration issues.
+
+------------------------------------------------------------------------
+
+# 13. Troubleshooting
+
+## Frontend cannot reach backend
+
+Check:
+
+-   Backend running
+-   CORS_ORIGINS configuration
+-   VITE_API_BASE_URL
+
+## Azure OpenAI Error
+
+Check:
+
+-   AZURE_OPENAI_ENDPOINT
+-   AZURE_OPENAI_API_KEY
+-   AZURE_OPENAI_DEPLOYMENT
+
+## Upload Error
+
+Check:
+
+-   Azure Storage connection string
+-   Backend environment variables
+
+------------------------------------------------------------------------
+
+# 14. Team Conventions
+
+-   Use feature branches:
+
+```{=html}
+<!-- -->
+```
+    feature/<lane>-<description>
+
+-   Do not commit secrets.
+-   Changes to shared-contracts require team notification.
+-   Keep commits focused on your assigned module.

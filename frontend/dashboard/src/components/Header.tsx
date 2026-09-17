@@ -1,9 +1,8 @@
 import {
-    useState
+    useState,
+    useEffect,
+    useRef
 } from "react";
-
-
-
 
 
 function Header(){
@@ -13,6 +12,99 @@ function Header(){
         search,
         setSearch
     ] = useState("");
+
+
+
+    const [
+        openProfile,
+        setOpenProfile
+    ] = useState(false);
+
+
+
+    const profileRef = useRef<HTMLDivElement>(null);
+
+
+
+
+
+
+    useEffect(()=>{
+
+
+        function handleClickOutside(
+            event:MouseEvent
+        ){
+
+
+            if(
+
+                profileRef.current &&
+
+                !profileRef.current.contains(
+                    event.target as Node
+                )
+
+            ){
+
+                setOpenProfile(false);
+
+            }
+
+
+        }
+
+
+
+
+        document.addEventListener(
+
+            "mousedown",
+
+            handleClickOutside
+
+        );
+
+
+
+
+        return ()=>{
+
+
+            document.removeEventListener(
+
+                "mousedown",
+
+                handleClickOutside
+
+            );
+
+
+        };
+
+
+    },[]);
+
+
+
+
+
+
+
+    function logout(){
+
+
+        localStorage.removeItem(
+            "inteltion_auth"
+        );
+
+
+        window.location.href="/login";
+
+
+    }
+
+
 
 
 
@@ -70,9 +162,6 @@ function Header(){
 
 
 
-
-
-
                 {/* SEARCH */}
 
 
@@ -91,9 +180,7 @@ function Header(){
                         value={search}
 
 
-                        onChange={
-
-                            e=>
+                        onChange={e=>
 
                             setSearch(
                                 e.target.value
@@ -143,7 +230,6 @@ function Header(){
 
                     <span
 
-
                         className="
 
                         absolute
@@ -153,8 +239,6 @@ function Header(){
                         top-2
 
                         text-gray-400
-
-                        text-sm
 
                         "
 
@@ -166,10 +250,7 @@ function Header(){
                     </span>
 
 
-
-
                 </div>
-
 
 
 
@@ -206,9 +287,7 @@ function Header(){
 
                 >
 
-
                     🔔
-
 
 
 
@@ -251,7 +330,6 @@ function Header(){
                     </span>
 
 
-
                 </button>
 
 
@@ -262,20 +340,19 @@ function Header(){
 
 
 
-                {/* USER */}
+                {/* PROFILE */}
 
 
 
                 <div
 
 
+                    ref={profileRef}
+
+
                     className="
 
-                    flex
-
-                    items-center
-
-                    gap-3
+                    relative
 
                     "
 
@@ -283,92 +360,57 @@ function Header(){
 
 
 
+                    <button
 
-                    <div
+
+                        onClick={()=>setOpenProfile(!openProfile)}
 
 
                         className="
-
-                        w-9
-
-                        h-9
-
-                        rounded-full
-
-                        bg-blue-600
-
-                        text-white
 
                         flex
 
                         items-center
 
-                        justify-center
-
-                        font-semibold
-
-                        text-sm
+                        gap-3
 
                         "
 
                     >
 
-                        HR
 
-
-                    </div>
-
-
-
-
-
-
-
-                    <div>
 
 
                         <div
 
+
                             className="
+
+                            w-9
+
+                            h-9
+
+                            rounded-full
+
+                            bg-blue-600
+
+                            text-white
 
                             flex
 
                             items-center
 
-                            gap-1
+                            justify-center
+
+                            font-semibold
+
+                            text-sm
 
                             "
 
                         >
 
-
-                            <p
-
-                                className="
-
-                                text-sm
-
-                                font-semibold
-
-                                text-gray-900
-
-                                "
-
-                            >
-
-                                HR Admin
-
-
-                            </p>
-
-
-
-                            <span className="text-gray-400 text-xs">
-
-                                ▾
-
-                            </span>
-
+                            HR
 
 
                         </div>
@@ -377,29 +419,204 @@ function Header(){
 
 
 
-                        <p
+
+                        <div>
+
+
+                            <div
+
+                                className="
+
+                                flex
+
+                                items-center
+
+                                gap-1
+
+                                "
+
+                            >
+
+
+                                <p
+
+                                    className="
+
+                                    text-sm
+
+                                    font-semibold
+
+                                    text-gray-900
+
+                                    "
+
+                                >
+
+                                    HR Admin
+
+
+                                </p>
+
+
+
+                                <span
+
+                                    className="
+                                    text-gray-400
+                                    text-xs
+                                    "
+
+                                >
+
+                                    ▾
+
+
+                                </span>
+
+
+                            </div>
+
+
+
+
+                            <p
+
+                                className="
+                                text-xs
+                                text-gray-400
+                                "
+
+                            >
+
+                                Recruiter
+
+
+                            </p>
+
+
+                        </div>
+
+
+
+                    </button>
+
+
+
+
+
+
+
+
+
+                    {
+                    openProfile &&
+
+
+                    <div
+
+
+                        className="
+
+                        absolute
+
+                        right-0
+
+                        top-12
+
+                        w-44
+
+                        bg-white
+
+                        border
+
+                        border-gray-200
+
+                        rounded-xl
+
+                        shadow-lg
+
+                        p-2
+
+                        z-50
+
+                        "
+
+                    >
+
+
+
+                        <button
 
 
                             className="
 
-                            text-xs
+                            w-full
 
-                            text-gray-400
+                            text-left
+
+                            px-3
+
+                            py-2
+
+                            rounded-lg
+
+                            text-sm
+
+                            hover:bg-gray-50
 
                             "
 
                         >
 
-                            Recruiter
+                            Profile
 
 
-                        </p>
+                        </button>
+
+
+
+
+
+
+                        <button
+
+
+                            onClick={logout}
+
+
+                            className="
+
+                            w-full
+
+                            text-left
+
+                            px-3
+
+                            py-2
+
+                            rounded-lg
+
+                            text-sm
+
+                            text-red-600
+
+                            hover:bg-red-50
+
+                            "
+
+                        >
+
+                            Logout
+
+
+                        </button>
 
 
 
                     </div>
 
 
+                    }
 
 
                 </div>
@@ -408,13 +625,7 @@ function Header(){
 
 
 
-
-
             </div>
-
-
-
-
 
 
         </header>

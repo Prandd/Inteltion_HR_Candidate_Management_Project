@@ -10,7 +10,8 @@ import type {
 
 
 import {
-    useParams
+    useParams,
+    useNavigate
 } from "react-router-dom";
 
 
@@ -37,6 +38,12 @@ function CandidateDetail(){
 
 
 
+    const navigate = useNavigate();
+
+
+
+
+
     const [
         candidate,
         setCandidate
@@ -60,6 +67,7 @@ function CandidateDetail(){
 
 
         if(!id)
+
             return;
 
 
@@ -70,13 +78,17 @@ function CandidateDetail(){
             const response =
 
                 await api.get(
+
                     `/candidates/${id}`
+
                 );
 
 
 
             setCandidate(
+
                 response.data.data
+
             );
 
 
@@ -85,14 +97,18 @@ function CandidateDetail(){
 
         catch(error){
 
+
             console.error(error);
+
 
         }
 
 
         finally{
 
+
             setLoading(false);
+
 
         }
 
@@ -104,9 +120,83 @@ function CandidateDetail(){
 
 
 
+
+
+
+    async function deleteCandidate(){
+
+
+
+        const confirmDelete = window.confirm(
+
+            "Are you sure you want to delete this candidate?"
+
+        );
+
+
+
+        if(!confirmDelete)
+
+            return;
+
+
+
+
+
+        try{
+
+
+            await api.delete(
+
+                `/candidates/${id}`
+
+            );
+
+
+
+            navigate("/");
+
+
+        }
+
+
+        catch(error){
+
+
+            console.error(
+
+                "Delete candidate failed",
+
+                error
+
+            );
+
+
+            alert(
+
+                "Failed to delete candidate"
+
+            );
+
+
+        }
+
+
+    }
+
+
+
+
+
+
+
+
+
     useEffect(()=>{
 
+
         fetchCandidate();
+
 
     },[id]);
 
@@ -119,13 +209,18 @@ function CandidateDetail(){
 
     if(loading)
 
+
         return (
+
 
             <div className="p-10">
 
+
                 Loading candidate...
 
+
             </div>
+
 
         );
 
@@ -134,15 +229,21 @@ function CandidateDetail(){
 
 
 
+
     if(!candidate)
+
 
         return (
 
+
             <div className="p-10">
+
 
                 Candidate not found
 
+
             </div>
+
 
         );
 
@@ -155,19 +256,14 @@ function CandidateDetail(){
     const confidence = Math.round(
 
         (candidate.extraction_confidence ?? 0)
+
         *
+
         100
 
     );
 
-
-
-
-
-
-
-
-    return (
+        return (
 
         <div
 
@@ -281,10 +377,14 @@ function CandidateDetail(){
 
 
 
-                            <p className="
-                            text-gray-500
-                            mt-1
-                            ">
+                            <p
+
+                                className="
+                                text-gray-500
+                                mt-1
+                                "
+
+                            >
 
                                 {
                                     candidate.applied_position || "-"
@@ -295,11 +395,15 @@ function CandidateDetail(){
 
 
 
-                            <p className="
-                            text-sm
-                            text-gray-400
-                            mt-2
-                            ">
+                            <p
+
+                                className="
+                                text-sm
+                                text-gray-400
+                                mt-2
+                                "
+
+                            >
 
                                 📍 {candidate.location || "-"}
 
@@ -325,21 +429,79 @@ function CandidateDetail(){
                         className="
                         flex
                         items-end
-                        gap-6
+                        gap-4
                         "
 
                     >
 
 
 
+
+
+
+                        {/* DELETE BUTTON */}
+
+
+
+                        <button
+
+
+                            onClick={deleteCandidate}
+
+
+
+                            className="
+
+                            h-10
+
+                            px-4
+
+                            bg-red-50
+
+                            text-red-600
+
+                            border
+
+                            border-red-200
+
+                            rounded-lg
+
+                            text-sm
+
+                            font-medium
+
+                            hover:bg-red-100
+
+                            "
+
+
+                        >
+
+                            Delete Candidate
+
+
+                        </button>
+
+
+
+
+
+
+
+
+
                         <div>
 
 
-                            <p className="
-                            text-xs
-                            text-gray-400
-                            mb-2
-                            ">
+                            <p
+
+                                className="
+                                text-xs
+                                text-gray-400
+                                mb-2
+                                "
+
+                            >
 
                                 Status
 
@@ -351,17 +513,23 @@ function CandidateDetail(){
 
 
                                 candidateId={
+
                                     candidate.candidate_id
+
                                 }
 
 
                                 currentStatus={
+
                                     candidate.status || "New"
+
                                 }
 
 
                                 onUpdate={
+
                                     fetchCandidate
+
                                 }
 
 
@@ -385,21 +553,37 @@ function CandidateDetail(){
 
                         >
 
-                            <div className="
-                            flex
-                            justify-between
-                            text-xs
-                            mb-2
-                            ">
+                            <div
 
-                                <span className="text-gray-400">
+                                className="
+                                flex
+                                justify-between
+                                text-xs
+                                mb-2
+                                "
+
+                            >
+
+                                <span
+
+                                    className="
+                                    text-gray-400
+                                    "
+
+                                >
 
                                     AI Match
 
                                 </span>
 
 
-                                <b className="text-blue-600">
+                                <b
+
+                                    className="
+                                    text-blue-600
+                                    "
+
+                                >
 
                                     {confidence}%
 
@@ -412,12 +596,16 @@ function CandidateDetail(){
 
 
 
-                            <div className="
-                            h-2
-                            bg-gray-100
-                            rounded-full
-                            overflow-hidden
-                            ">
+                            <div
+
+                                className="
+                                h-2
+                                bg-gray-100
+                                rounded-full
+                                overflow-hidden
+                                "
+
+                            >
 
 
                                 <div
@@ -430,7 +618,9 @@ function CandidateDetail(){
 
                                     style={{
 
-                                        width:`${confidence}%`
+                                        width:
+
+                                        `${confidence}%`
 
                                     }}
 
@@ -453,15 +643,7 @@ function CandidateDetail(){
 
                 </div>
 
-
-
-
-
-
-
-
-
-                {/* GRID */}
+                        {/* GRID */}
 
 
 
@@ -510,6 +692,7 @@ function CandidateDetail(){
 
                                 {
                                     candidate.summary ||
+
                                     "No summary available"
                                 }
 
@@ -531,9 +714,11 @@ function CandidateDetail(){
 
                         {
 
+
                         candidate.experience?.length
 
                         ?
+
 
                         candidate.experience.map((exp,index)=>(
 
@@ -551,30 +736,51 @@ function CandidateDetail(){
 
                             >
 
-                                <h3 className="font-semibold">
+                                <h3
+
+                                    className="
+                                    font-semibold
+                                    "
+
+                                >
 
                                     {exp.position}
+
 
                                 </h3>
 
 
-                                <p className="text-sm">
+                                <p
+
+                                    className="
+                                    text-sm
+                                    "
+
+                                >
 
                                     {exp.company}
+
 
                                 </p>
 
 
 
-                                <p className="
-                                text-xs
-                                text-gray-400
-                                mt-1
-                                ">
+                                <p
+
+                                    className="
+                                    text-xs
+                                    text-gray-400
+                                    mt-1
+                                    "
+
+                                >
 
                                     {exp.start_date}
+
                                     {" - "}
+
                                     {exp.end_date}
+
 
                                 </p>
 
@@ -584,13 +790,16 @@ function CandidateDetail(){
 
                         ))
 
+
                         :
+
 
                         <p className="text-gray-400">
 
                             No experience
 
                         </p>
+
 
                         }
 
@@ -632,7 +841,9 @@ function CandidateDetail(){
                                 label="Email"
 
                                 value={
+
                                     candidate.email || "-"
+
                                 }
 
                             />
@@ -643,7 +854,9 @@ function CandidateDetail(){
                                 label="Phone"
 
                                 value={
+
                                     candidate.phone || "-"
+
                                 }
 
                             />
@@ -661,14 +874,19 @@ function CandidateDetail(){
                         <InfoCard title="Skills">
 
 
-                            <div className="
-                            flex
-                            flex-wrap
-                            gap-2
-                            ">
+                            <div
+
+                                className="
+                                flex
+                                flex-wrap
+                                gap-2
+                                "
+
+                            >
 
 
                             {
+
 
                             candidate.skills?.map(skill=>(
 
@@ -696,6 +914,7 @@ function CandidateDetail(){
 
                             ))
 
+
                             }
 
 
@@ -714,9 +933,12 @@ function CandidateDetail(){
 
                             {
 
+
                             candidate.resume_url
 
+
                             ?
+
 
                             <a
 
@@ -745,11 +967,13 @@ function CandidateDetail(){
 
                             :
 
+
                             <p className="text-gray-400">
 
                                 No resume available
 
                             </p>
+
 
                             }
 
@@ -817,11 +1041,15 @@ function InfoCard({
         >
 
 
-            <h2 className="
-            font-bold
-            text-base
-            mb-4
-            ">
+            <h2
+
+                className="
+                font-bold
+                text-base
+                mb-4
+                "
+
+            >
 
                 {title}
 
@@ -834,7 +1062,6 @@ function InfoCard({
         </section>
 
     );
-
 
 }
 
@@ -861,24 +1088,38 @@ function InfoItem({
 
     return (
 
-        <div className="mb-4">
+        <div
+
+            className="
+            mb-4
+            "
+
+        >
 
 
-            <p className="
-            text-xs
-            text-gray-400
-            ">
+            <p
+
+                className="
+                text-xs
+                text-gray-400
+                "
+
+            >
 
                 {label}
 
             </p>
 
 
-            <p className="
-            text-sm
-            font-medium
-            mt-1
-            ">
+            <p
+
+                className="
+                text-sm
+                font-medium
+                mt-1
+                "
+
+            >
 
                 {value}
 
@@ -889,11 +1130,7 @@ function InfoItem({
 
     );
 
-
 }
-
-
-
 
 
 export default CandidateDetail;

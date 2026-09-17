@@ -4,8 +4,10 @@ import {
 
 
 import {
-    useNavigate
+    useNavigate,
+    Navigate
 } from "react-router-dom";
+
 
 
 
@@ -13,45 +15,136 @@ import {
 function Login(){
 
 
-
     const navigate = useNavigate();
 
 
 
+
+
+    const isAuthenticated =
+
+        localStorage.getItem(
+            "inteltion_auth"
+        );
+
+
+
+    if(isAuthenticated){
+
+
+        return (
+
+            <Navigate
+
+                to="/"
+
+                replace
+
+            />
+
+        );
+
+
+    }
+
+
+
+
+
+
+
+
+
     const [
+
         email,
+
         setEmail
+
     ] = useState("");
+
+
 
 
 
     const [
+
         password,
+
         setPassword
+
     ] = useState("");
 
 
 
 
 
-    function login(){
+
+    const [
+
+        error,
+
+        setError
+
+    ] = useState("");
 
 
-        // temporary frontend login
 
-        if(!email || !password){
 
-            alert(
+
+
+
+
+
+    function handleLogin(
+
+        e:React.FormEvent
+
+    ){
+
+
+        e.preventDefault();
+
+
+
+
+
+        if(!email.trim() || !password.trim()){
+
+
+            setError(
                 "Please enter email and password"
             );
 
+
             return;
+
 
         }
 
 
 
+
+
+
+        // MVP authentication
+        // Replace with backend auth later
+
+
+        localStorage.setItem(
+
+            "inteltion_auth",
+
+            "true"
+
+        );
+
+
+
+
+
         navigate("/");
+
 
     }
 
@@ -66,103 +159,66 @@ function Login(){
 
         <div
 
-
             className="
-
             min-h-screen
-
             bg-[#f7f9ff]
-
             flex
-
             items-center
-
             justify-center
-
             "
 
         >
 
 
 
-
             <div
 
-
                 className="
-
                 bg-white
-
                 w-[420px]
-
                 rounded-2xl
-
                 border
-
                 p-8
-
                 shadow-sm
-
                 "
-
 
             >
 
 
 
 
-
-
-                {/* Logo */}
-
+                {/* LOGO */}
 
 
                 <div
 
                     className="
-
                     text-center
-
                     mb-8
-
                     "
 
                 >
 
 
-
                     <div
 
-
                         className="
-
                         mx-auto
-
                         w-12
-
                         h-12
-
-                        bg-blue-600
-
                         rounded-xl
-
-                        flex
-
-                        items-center
-
-                        justify-center
-
+                        bg-blue-600
                         text-white
-
-                        font-bold
-
+                        flex
+                        items-center
+                        justify-center
                         text-xl
-
+                        font-bold
                         "
 
                     >
 
-                        ▦
+                        I
 
 
                     </div>
@@ -170,20 +226,13 @@ function Login(){
 
 
 
-
                     <h1
 
-
                         className="
-
                         text-2xl
-
                         font-bold
-
                         text-blue-600
-
-                        mt-4
-
+                        mt-3
                         "
 
                     >
@@ -195,16 +244,11 @@ function Login(){
 
 
 
-
-
                     <p
 
                         className="
-
-                        text-gray-500
-
                         text-sm
-
+                        text-gray-400
                         "
 
                     >
@@ -225,12 +269,48 @@ function Login(){
 
 
 
+                <form
 
-                {/* Form */}
+                    onSubmit={handleLogin}
+
+                    className="
+                    space-y-5
+                    "
+
+                >
 
 
 
-                <div className="space-y-4">
+
+                    {
+
+                    error &&
+
+
+                    <div
+
+                        className="
+                        bg-red-50
+                        text-red-600
+                        text-sm
+                        px-4
+                        py-3
+                        rounded-xl
+                        "
+
+                    >
+
+                        {error}
+
+
+                    </div>
+
+
+                    }
+
+
+
+
 
 
 
@@ -240,11 +320,8 @@ function Login(){
                         <label
 
                             className="
-
                             text-sm
-
-                            font-medium
-
+                            text-gray-600
                             "
 
                         >
@@ -262,43 +339,31 @@ function Login(){
                             value={email}
 
 
-                            onChange={
-
-                                e=>
+                            onChange={e=>{
 
                                 setEmail(
-
                                     e.target.value
-
-                                )
-
-                            }
+                                );
 
 
+                                setError("");
 
-                            placeholder="Enter email"
+                            }}
+
+
+                            placeholder="admin@inteltion.com"
 
 
                             className="
-
                             mt-2
-
                             w-full
-
                             border
-
                             rounded-xl
-
                             px-4
-
                             py-3
-
                             outline-none
-
                             focus:ring-2
-
-                            focus:ring-blue-200
-
+                            focus:ring-blue-100
                             "
 
                         />
@@ -313,18 +378,14 @@ function Login(){
 
 
 
-
                     <div>
 
 
                         <label
 
                             className="
-
                             text-sm
-
-                            font-medium
-
+                            text-gray-600
                             "
 
                         >
@@ -345,43 +406,31 @@ function Login(){
                             value={password}
 
 
-                            onChange={
-
-                                e=>
+                            onChange={e=>{
 
                                 setPassword(
-
                                     e.target.value
-
-                                )
-
-                            }
+                                );
 
 
+                                setError("");
 
-                            placeholder="Enter password"
+                            }}
+
+
+                            placeholder="••••••••"
 
 
                             className="
-
                             mt-2
-
                             w-full
-
                             border
-
                             rounded-xl
-
                             px-4
-
                             py-3
-
                             outline-none
-
                             focus:ring-2
-
-                            focus:ring-blue-200
-
+                            focus:ring-blue-100
                             "
 
                         />
@@ -393,50 +442,36 @@ function Login(){
 
 
 
-                </div>
+
+
+
+
+                    <button
+
+
+                        className="
+                        w-full
+                        bg-blue-600
+                        hover:bg-blue-700
+                        text-white
+                        py-3
+                        rounded-xl
+                        font-semibold
+                        "
+
+                    >
+
+                        Login
+
+
+                    </button>
 
 
 
 
 
 
-
-
-
-                <button
-
-
-                    onClick={login}
-
-
-                    className="
-
-                    mt-8
-
-                    w-full
-
-                    bg-blue-600
-
-                    text-white
-
-                    py-3
-
-                    rounded-xl
-
-                    font-semibold
-
-                    hover:bg-blue-700
-
-                    "
-
-                >
-
-                    Login
-
-
-                </button>
-
-
+                </form>
 
 
 
@@ -450,6 +485,7 @@ function Login(){
 
 
     );
+
 
 
 }

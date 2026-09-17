@@ -18,15 +18,23 @@ import api from "../api/axios";
 
 
 
+
+
+
 interface ToolRequirement {
+
 
     name:string;
 
+
     weight:number;
+
 
     experience:number;
 
+
     recency:number;
+
 
 }
 
@@ -36,13 +44,19 @@ interface ToolRequirement {
 
 interface SkillDomain {
 
+
     id:number;
+
 
     name:string;
 
+
     tools:ToolRequirement[];
 
+
 }
+
+
 
 
 
@@ -113,6 +127,35 @@ function PositionRequirements(){
 
     const [
 
+        loading,
+
+        setLoading
+
+    ] = useState(false);
+
+
+
+
+
+
+    const [
+
+        error,
+
+        setError
+
+    ] = useState("");
+
+
+
+
+
+
+
+
+
+    const [
+
         domains,
 
         setDomains
@@ -142,33 +185,8 @@ function PositionRequirements(){
 
             ]
 
-        },
-
-
-
-        {
-
-            id:2,
-
-            name:"Machine Learning",
-
-            tools:[
-
-                {
-
-                    name:"TensorFlow",
-
-                    weight:4,
-
-                    experience:2,
-
-                    recency:2
-
-                }
-
-            ]
-
         }
+
 
 
     ]);
@@ -213,7 +231,6 @@ function PositionRequirements(){
             }
 
         ]);
-
 
     }
 
@@ -274,7 +291,6 @@ function PositionRequirements(){
 
         );
 
-
     }
 
 
@@ -333,14 +349,13 @@ function PositionRequirements(){
 
         domainId:number,
 
-        toolIndex:number,
+        index:number,
 
         field:keyof ToolRequirement,
 
         value:string|number
 
     ){
-
 
 
         setDomains(prev=>
@@ -354,6 +369,7 @@ function PositionRequirements(){
 
 
 
+
                 return {
 
 
@@ -362,10 +378,10 @@ function PositionRequirements(){
 
                     tools:
 
-                    domain.tools.map((tool,index)=>{
+                    domain.tools.map((tool,i)=>{
 
 
-                        if(index!==toolIndex)
+                        if(i!==index)
 
                             return tool;
 
@@ -389,6 +405,7 @@ function PositionRequirements(){
                 };
 
 
+
             })
 
         );
@@ -406,49 +423,54 @@ function PositionRequirements(){
 
     async function publish(
 
-    e:FormEvent
+        e:FormEvent
 
-){
-
-
-    e.preventDefault();
+    ){
 
 
-
-    if(!title.trim()){
-
-        alert("Please enter job title");
-
-        return;
-
-    }
+        e.preventDefault();
 
 
 
 
+        if(!title.trim()){
 
 
-    try{
+            setError(
+                "Job title is required"
+            );
 
 
-        const skills =
+            return;
 
 
-            domains.flatMap(domain=>
+        }
 
-                domain.tools.map(tool=>({
 
-                    name:tool.name,
 
-                    domain:domain.name,
 
-                    weight:tool.weight,
 
-                    experience:tool.experience,
 
-                    recency:tool.recency
+        try{
 
-                }))
+
+            setLoading(true);
+
+            setError("");
+
+
+
+
+
+            const skills = domains.flatMap(
+
+                domain =>
+
+                domain.tools
+
+                .map(tool=>tool.name)
+
+                .filter(Boolean)
 
             );
 
@@ -458,60 +480,71 @@ function PositionRequirements(){
 
 
 
+            await api.post(
 
-        await api.post(
+                "/positions",
 
-            "/positions",
+                {
 
-            {
+                    title,
 
+                    department,
 
-                title,
+                    description,
 
+                    location,
 
-                department,
+                    skills
 
+                }
 
-                description,
-
-
-                location,
-
-
-                skills
-
-
-            }
-
-        );
+            );
 
 
 
 
 
-        navigate("/positions");
+
+            navigate("/positions");
+
+
+
+        }
+
+
+        catch(err){
+
+
+            console.error(err);
+
+
+
+            setError(
+                "Failed to create position"
+            );
+
+
+        }
+
+
+        finally{
+
+
+            setLoading(false);
+
+
+        }
 
 
 
     }
 
 
-    catch(error){
-
-
-        console.error(error);
-
-
-        alert(
-            "Failed to create position"
-        );
-
-
-    }
 
 
 
-}
+
+
 
 
     return (
@@ -560,12 +593,6 @@ space-y-6
 
 
 
-{/* HEADER */}
-
-
-
-<div>
-
 
 <button
 
@@ -582,16 +609,16 @@ text-sm
 
 text-gray-500
 
-mb-3
-
 "
-
 
 >
 
 ← Back to Positions
 
+
 </button>
+
+
 
 
 
@@ -605,8 +632,6 @@ text-3xl
 
 font-bold
 
-text-gray-900
-
 "
 
 >
@@ -617,39 +642,54 @@ Create Position
 
 
 
-<p
+
+
+
+
+
+
+{
+
+error &&
+
+
+<div
 
 className="
 
-text-gray-500
+bg-red-50
 
-mt-1
+text-red-600
+
+px-4
+
+py-3
+
+rounded-xl
+
+text-sm
 
 "
 
 >
 
-Define requirements and let AI rank candidates automatically
-
-</p>
+{error}
 
 
 </div>
 
 
+}
 
 
 
 
 
 
-
-{/* BASIC INFORMATION */}
 
 
 
 <section
-
 
 className="
 
@@ -667,19 +707,7 @@ p-6
 
 
 
-<h2
-
-className="
-
-font-bold
-
-text-lg
-
-mb-5
-
-"
-
->
+<h2 className="font-bold text-lg mb-5">
 
 Position Information
 
@@ -689,20 +717,7 @@ Position Information
 
 
 
-
-<div
-
-className="
-
-grid
-
-grid-cols-2
-
-gap-5
-
-"
-
->
+<div className="grid grid-cols-2 gap-5">
 
 
 
@@ -721,6 +736,9 @@ placeholder="AI Engineer"
 
 
 
+
+
+
 <label>
 
 
@@ -734,31 +752,13 @@ Department
 
 <select
 
-
 value={department}
-
 
 onChange={e=>setDepartment(e.target.value)}
 
-
-className="
-
-mt-2
-
-w-full
-
-border
-
-rounded-xl
-
-px-4
-
-py-3
-
-"
+className="mt-2 w-full border rounded-xl px-4 py-3"
 
 >
-
 
 <option>
 Engineering
@@ -767,7 +767,6 @@ Engineering
 <option>
 Data Science & AI
 </option>
-
 
 <option>
 Product
@@ -778,6 +777,8 @@ Product
 
 
 </label>
+
+
 
 
 
@@ -798,57 +799,40 @@ placeholder="Bangkok"
 
 
 
+
+
+
 <label className="col-span-2">
 
 
 <p className="text-sm text-gray-600">
 
-Job Description
+Description
 
 </p>
 
 
 <textarea
 
-
 rows={4}
-
 
 value={description}
 
-
 onChange={e=>setDescription(e.target.value)}
 
-
-className="
-
-mt-2
-
-w-full
-
-border
-
-rounded-xl
-
-px-4
-
-py-3
-
-"
-
+className="mt-2 w-full border rounded-xl px-4 py-3"
 
 />
-
 
 
 </label>
 
 
 
+
 </div>
 
 
-
 </section>
 
 
@@ -859,84 +843,7 @@ py-3
 
 
 
-{/* AI MATCHING */}
-
-
-
 <section
-
-
-className="
-
-bg-blue-50
-
-border
-
-border-blue-100
-
-rounded-2xl
-
-p-5
-
-"
-
->
-
-
-<h3
-
-className="
-
-font-bold
-
-text-blue-700
-
-"
-
->
-
-🤖 AI Matching Enabled
-
-</h3>
-
-
-
-<p
-
-className="
-
-text-sm
-
-text-gray-600
-
-mt-1
-
-"
-
->
-
-Requirement weights are used for candidate ranking and matching score.
-
-</p>
-
-
-
-</section>
-
-
-
-
-
-
-
-
-
-{/* SKILLS */}
-
-
-
-<section
-
 
 className="
 
@@ -954,61 +861,23 @@ p-6
 
 
 
-<div
+<div className="flex justify-between mb-5">
 
 
-className="
+<h2 className="font-bold text-lg">
 
-flex
-
-justify-between
-
-items-center
-
-mb-5
-
-"
-
->
-
-
-<h2
-
-className="
-
-font-bold
-
-text-lg
-
-"
-
->
-
-Skill Requirements
+Skills
 
 </h2>
 
 
-
 <button
-
 
 type="button"
 
-
 onClick={addDomain}
 
-
-className="
-
-text-blue-600
-
-text-sm
-
-font-semibold
-
-"
-
+className="text-blue-600 text-sm"
 
 >
 
@@ -1032,28 +901,13 @@ font-semibold
 domains.map(domain=>(
 
 
-
 <div
-
 
 key={domain.id}
 
-
-className="
-
-border
-
-rounded-xl
-
-p-4
-
-mb-4
-
-"
+className="border rounded-xl p-4 mb-4"
 
 >
-
-
 
 
 <input
@@ -1075,24 +929,10 @@ e.target.value
 }
 
 
-className="
-
-font-semibold
-
-text-lg
-
-outline-none
-
-border-b
-
-pb-1
-
-"
+className="font-semibold border-b pb-1"
 
 
 />
-
-
 
 
 
@@ -1103,24 +943,11 @@ pb-1
 domain.tools.map((tool,index)=>(
 
 
-
 <div
-
 
 key={index}
 
-
-className="
-
-grid
-
-grid-cols-4
-
-gap-3
-
-mt-4
-
-"
+className="mt-4"
 
 >
 
@@ -1129,6 +956,9 @@ mt-4
 
 
 value={tool.name}
+
+
+placeholder="Skill name"
 
 
 onChange={e=>
@@ -1148,153 +978,19 @@ e.target.value
 }
 
 
-placeholder="Tool / Skill"
-
-
-className="
-
-border
-
-rounded-lg
-
-px-3
-
-py-2
-
-"
-
+className="border rounded-lg px-3 py-2 w-full"
 
 />
-
-
-
-
-
-
-<Stepper
-
-
-label="Weight"
-
-
-value={tool.weight}
-
-
-min={1}
-
-
-max={5}
-
-
-onChange={value=>
-
-updateTool(
-
-domain.id,
-
-index,
-
-"weight",
-
-value
-
-)
-
-}
-
-
-/>
-
-
-
-
-
-
-
-<Stepper
-
-
-label="Experience"
-
-
-value={tool.experience}
-
-
-min={0}
-
-
-max={20}
-
-
-onChange={value=>
-
-updateTool(
-
-domain.id,
-
-index,
-
-"experience",
-
-value
-
-)
-
-}
-
-
-/>
-
-
-
-
-
-
-
-<Stepper
-
-
-label="Recency"
-
-
-value={tool.recency}
-
-
-min={0}
-
-
-max={20}
-
-
-onChange={value=>
-
-updateTool(
-
-domain.id,
-
-index,
-
-"recency",
-
-value
-
-)
-
-}
-
-
-/>
-
 
 
 </div>
-
 
 
 ))
 
 
 }
+
 
 
 
@@ -1310,18 +1006,7 @@ type="button"
 onClick={()=>addTool(domain.id)}
 
 
-className="
-
-mt-4
-
-text-blue-600
-
-text-sm
-
-font-medium
-
-"
-
+className="mt-3 text-blue-600 text-sm"
 
 >
 
@@ -1333,7 +1018,6 @@ font-medium
 
 
 </div>
-
 
 
 ))
@@ -1353,26 +1037,7 @@ font-medium
 
 
 
-{/* ACTION */}
-
-
-
-<div
-
-
-className="
-
-flex
-
-justify-end
-
-gap-3
-
-"
-
-
->
-
+<div className="flex justify-end gap-3">
 
 
 <button
@@ -1384,18 +1049,7 @@ type="button"
 onClick={()=>navigate("/positions")}
 
 
-className="
-
-px-5
-
-py-3
-
-border
-
-rounded-xl
-
-"
-
+className="px-5 py-3 border rounded-xl"
 
 >
 
@@ -1407,38 +1061,38 @@ Cancel
 
 
 
-
 <button
 
 
-className="
+disabled={loading}
 
-px-6
 
-py-3
-
-bg-blue-600
-
-text-white
-
-rounded-xl
-
-font-semibold
-
-"
-
+className="px-6 py-3 bg-blue-600 text-white rounded-xl disabled:bg-gray-400"
 
 >
 
-Publish Position
+
+{
+
+loading
+
+?
+
+"Publishing..."
+
+:
+
+"Publish Position"
+
+}
+
+
 
 </button>
 
 
 
-
 </div>
-
 
 
 
@@ -1457,13 +1111,7 @@ Publish Position
 
     );
 
-
 }
-
-
-
-
-
 
 
 
@@ -1484,7 +1132,7 @@ label:string;
 
 value:string;
 
-onChange:(value:string)=>void;
+onChange:(v:string)=>void;
 
 placeholder:string;
 
@@ -1492,7 +1140,6 @@ placeholder:string;
 
 
 return (
-
 
 <label>
 
@@ -1502,7 +1149,6 @@ return (
 {label}
 
 </p>
-
 
 
 <input
@@ -1517,21 +1163,7 @@ onChange={e=>onChange(e.target.value)}
 placeholder={placeholder}
 
 
-className="
-
-mt-2
-
-w-full
-
-border
-
-rounded-xl
-
-px-4
-
-py-3
-
-"
+className="mt-2 w-full border rounded-xl px-4 py-3"
 
 
 />
@@ -1546,129 +1178,6 @@ py-3
 }
 
 
-
-
-
-
-
-
-
-function Stepper({
-
-label,
-
-value,
-
-min,
-
-max,
-
-onChange
-
-}:{
-
-label:string;
-
-value:number;
-
-min:number;
-
-max:number;
-
-onChange:(value:number)=>void;
-
-}){
-
-
-return (
-
-<div>
-
-
-<p className="text-xs text-gray-500 mb-1">
-
-{label}
-
-</p>
-
-
-
-<div
-
-
-className="
-
-border
-
-rounded-lg
-
-flex
-
-items-center
-
-justify-between
-
-px-2
-
-py-1.5
-
-"
-
-
->
-
-
-<button
-
-
-type="button"
-
-
-onClick={()=>onChange(Math.max(min,value-1))}
-
-
->
-
--
-
-</button>
-
-
-
-<span className="text-sm font-medium">
-
-{value}
-
-</span>
-
-
-
-<button
-
-
-type="button"
-
-
-onClick={()=>onChange(Math.min(max,value+1))}
-
-
->
-
-+
-
-</button>
-
-
-</div>
-
-
-</div>
-
-
-);
-
-
-}
 
 
 

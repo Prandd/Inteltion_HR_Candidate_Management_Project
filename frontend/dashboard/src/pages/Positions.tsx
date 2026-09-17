@@ -17,7 +17,6 @@ import api from "../api/axios";
 
 interface Position {
 
-
     id:string;
 
     title:string;
@@ -29,9 +28,6 @@ interface Position {
     status?:string;
 
     candidate_count?:number;
-
-    created_at?:string;
-
 
 }
 
@@ -50,17 +46,42 @@ function Positions(){
 
 
 
+
+
     const [
+
         positions,
+
         setPositions
+
     ] = useState<Position[]>([]);
 
 
 
+
+
     const [
+
         loading,
+
         setLoading
+
     ] = useState(true);
+
+
+
+
+
+    const [
+
+        error,
+
+        setError
+
+    ] = useState("");
+
+
+
 
 
 
@@ -69,9 +90,14 @@ function Positions(){
 
     useEffect(()=>{
 
+
         fetchPositions();
 
+
     },[]);
+
+
+
 
 
 
@@ -84,24 +110,39 @@ function Positions(){
         try{
 
 
-            const response =
-                await api.get(
-                    "/positions"
+            setLoading(true);
+
+
+            setError("");
+
+
+
+            const response = await api.get(
+                "/positions"
+            );
+
+
+
+            if(
+
+                response.data.error
+
+            ){
+
+
+                throw new Error(
+                    response.data.error
                 );
+
+
+            }
+
 
 
 
             setPositions(
 
-                Array.isArray(response.data.data)
-
-                ?
-
-                response.data.data
-
-                :
-
-                []
+                response.data.data || []
 
             );
 
@@ -109,16 +150,26 @@ function Positions(){
         }
 
 
-        catch(error){
+        catch(err){
 
-            console.error(error);
+
+            console.error(err);
+
+
+
+            setError(
+                "Unable to load positions"
+            );
+
 
         }
 
 
         finally{
 
+
             setLoading(false);
+
 
         }
 
@@ -132,23 +183,40 @@ function Positions(){
 
 
 
-    function statusStyle(status:string){
+
+    function statusStyle(
+
+        status:string
+
+    ){
 
 
-        if(status==="Closed")
-
-            return "bg-red-50 text-red-600";
+        switch(status){
 
 
-        if(status==="Open")
+            case "Closed":
 
-            return "bg-green-50 text-green-600";
+                return "bg-red-50 text-red-600";
 
 
-        return "bg-blue-50 text-blue-600";
+
+            case "Open":
+
+                return "bg-green-50 text-green-600";
+
+
+
+            default:
+
+                return "bg-blue-50 text-blue-600";
+
+
+        }
 
 
     }
+
+
 
 
 
@@ -161,13 +229,22 @@ function Positions(){
 
         return (
 
-            <div className="p-10">
+            <div
+
+                className="
+                p-10
+                text-gray-500
+                "
+
+            >
 
                 Loading positions...
+
 
             </div>
 
         );
+
 
     }
 
@@ -201,7 +278,6 @@ function Positions(){
 
 
 
-
             {/* HEADER */}
 
 
@@ -228,39 +304,40 @@ function Positions(){
                 <div>
 
 
-                    <h1 className="
+                    <h1
 
-                    text-3xl
+                        className="
+                        text-3xl
+                        font-bold
+                        text-gray-900
+                        "
 
-                    font-bold
-
-                    text-gray-900
-
-                    ">
+                    >
 
                         Positions
+
 
                     </h1>
 
 
 
+                    <p
 
-                    <p className="
+                        className="
+                        text-gray-500
+                        mt-1
+                        "
 
-                    text-gray-500
-
-                    mt-1
-
-                    ">
+                    >
 
                         Manage job openings and requirements
+
 
                     </p>
 
 
+
                 </div>
-
-
 
 
 
@@ -291,8 +368,6 @@ function Positions(){
 
                     rounded-xl
 
-                    text-sm
-
                     font-semibold
 
                     "
@@ -307,6 +382,38 @@ function Positions(){
 
 
             </div>
+
+
+
+
+
+
+
+
+
+            {
+            error &&
+
+
+            <div
+
+                className="
+                bg-red-50
+                text-red-600
+                px-4
+                py-3
+                rounded-xl
+                mb-5
+                "
+
+            >
+
+                {error}
+
+
+            </div>
+
+            }
 
 
 
@@ -348,6 +455,8 @@ function Positions(){
                 />
 
 
+
+
                 <Stat
 
                     title="Open"
@@ -356,13 +465,17 @@ function Positions(){
 
                         positions.filter(
 
-                            p=>p.status==="Open"
+                            p=>
+
+                            p.status==="Open"
 
                         ).length
 
                     }
 
                 />
+
+
 
 
                 <Stat
@@ -375,7 +488,13 @@ function Positions(){
 
                             (sum,p)=>
 
-                            sum+(p.candidate_count||0),
+                            sum +
+
+                            (
+
+                            p.candidate_count || 0
+
+                            ),
 
                             0
 
@@ -398,41 +517,26 @@ function Positions(){
 
 
             {
-
             positions.length===0
 
 
             ?
 
 
-
             <div
 
-
                 className="
-
                 bg-white
-
                 border
-
                 rounded-2xl
-
                 p-12
-
                 text-center
-
                 "
 
             >
 
 
-                <p className="
-
-                text-gray-700
-
-                font-semibold
-
-                ">
+                <p className="font-semibold">
 
                     No positions yet
 
@@ -440,31 +544,19 @@ function Positions(){
                 </p>
 
 
-                <p className="
-
-                text-sm
-
-                text-gray-400
-
-                mt-2
-
-                ">
+                <p className="text-sm text-gray-400 mt-2">
 
                     Create a position to start matching candidates
 
-
                 </p>
+
 
 
             </div>
 
 
 
-
-
             :
-
-
 
 
 
@@ -490,11 +582,29 @@ function Positions(){
             positions.map(position=>(
 
 
-
                 <div
 
 
                     key={position.id}
+
+
+                    className="
+
+                    bg-white
+
+                    border
+
+                    rounded-2xl
+
+                    p-5
+
+                    hover:shadow-md
+
+                    cursor-pointer
+
+                    transition
+
+                    "
 
 
                     onClick={()=>navigate(
@@ -504,29 +614,7 @@ function Positions(){
                     )}
 
 
-                    className="
-
-                    bg-white
-
-                    border
-
-                    border-gray-200
-
-                    rounded-2xl
-
-                    p-5
-
-                    cursor-pointer
-
-                    hover:shadow-md
-
-                    transition
-
-                    "
-
                 >
-
-
 
 
 
@@ -534,90 +622,47 @@ function Positions(){
 
                     <div
 
-
                         className="
-
                         flex
-
                         justify-between
-
                         "
 
                     >
 
 
 
-                        <div className="flex gap-3">
+                        <div>
 
 
-                            <div
-
+                            <h2
 
                                 className="
-
-                                w-10
-
-                                h-10
-
-                                rounded-xl
-
-                                bg-blue-50
-
-                                flex
-
-                                items-center
-
-                                justify-center
-
+                                font-bold
                                 "
 
                             >
 
-                                💼
+                                {position.title}
 
 
-                            </div>
-
-
-
-
-                            <div>
-
-
-                                <h2 className="
-
-                                font-bold
-
-                                text-gray-900
-
-                                ">
-
-
-                                    {position.title}
-
-
-                                </h2>
+                            </h2>
 
 
 
-                                <p className="
+                            <p
 
+                                className="
                                 text-xs
-
                                 text-gray-400
-
                                 mt-1
+                                "
 
-                                ">
+                            >
 
-
-                                    {position.department || "-"}
-
-
-                                </p>
+                                {position.department || "-"}
 
 
-                            </div>
+                            </p>
 
 
                         </div>
@@ -627,9 +672,7 @@ function Positions(){
 
 
 
-
                         <span
-
 
                             className={`
 
@@ -641,28 +684,17 @@ function Positions(){
 
                             rounded-full
 
-                            font-medium
-
-                            ${
-
-                            statusStyle(
+                            ${statusStyle(
 
                                 position.status || "Open"
 
-                            )
-
-                            }
+                            )}
 
                             `}
 
-
                         >
 
-                            {
-
-                                position.status || "Open"
-
-                            }
+                            {position.status || "Open"}
 
 
                         </span>
@@ -677,16 +709,14 @@ function Positions(){
 
 
 
+                    <div
 
+                        className="
+                        mt-5
+                        space-y-3
+                        "
 
-                    <div className="
-
-                    mt-5
-
-                    space-y-3
-
-                    ">
-
+                    >
 
 
                         <Info
@@ -709,7 +739,7 @@ function Positions(){
 
                                 String(
 
-                                position.candidate_count || 0
+                                    position.candidate_count || 0
 
                                 )
 
@@ -718,10 +748,7 @@ function Positions(){
                         />
 
 
-
                     </div>
-
-
 
 
 
@@ -729,65 +756,31 @@ function Positions(){
 
                     <div
 
-
                         className="
-
                         mt-5
-
                         pt-4
-
                         border-t
-
-                        flex
-
-                        justify-between
-
+                        text-blue-600
+                        text-sm
+                        font-semibold
                         "
 
                     >
 
-
-                        <span className="
-
-                        text-xs
-
-                        text-gray-400
-
-                        ">
-
-                            AI Matching Enabled
-
-                        </span>
-
-
-
-                        <span className="
-
-                        text-blue-600
-
-                        text-sm
-
-                        font-semibold
-
-                        ">
-
-                            View →
-
-                        </span>
+                        View →
 
 
                     </div>
 
 
 
-
                 </div>
-
 
 
             ))
 
             }
+
 
 
             </div>
@@ -797,15 +790,15 @@ function Positions(){
 
 
 
-
-
         </div>
 
 
     );
 
 
+
 }
+
 
 
 
@@ -831,41 +824,25 @@ function Stat({
 
     return (
 
-        <div className="
+        <div
 
-        bg-white
+            className="
+            bg-white
+            border
+            rounded-2xl
+            p-5
+            "
 
-        border
+        >
 
-        rounded-2xl
-
-        p-5
-
-        ">
-
-
-            <p className="
-
-            text-sm
-
-            text-gray-500
-
-            ">
+            <p className="text-sm text-gray-500">
 
                 {title}
 
             </p>
 
 
-            <p className="
-
-            text-3xl
-
-            font-bold
-
-            mt-2
-
-            ">
+            <p className="text-3xl font-bold mt-2">
 
                 {value}
 
@@ -903,20 +880,20 @@ function Info({
 
     return (
 
-        <div className="
+        <div
 
-        flex
+            className="
+            flex
+            justify-between
+            text-sm
+            "
 
-        justify-between
-
-        text-sm
-
-        ">
-
+        >
 
             <span className="text-gray-400">
 
                 {label}
+
 
             </span>
 
@@ -924,6 +901,7 @@ function Info({
             <span className="font-medium">
 
                 {value}
+
 
             </span>
 
@@ -933,7 +911,6 @@ function Info({
     );
 
 }
-
 
 
 

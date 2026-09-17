@@ -720,3 +720,60 @@ async def upload_candidate(
         "error": None
 
     }
+    
+    # =========================
+# DELETE
+# =========================
+
+@router.delete("/candidates/{candidate_id}")
+def delete_candidate(
+
+    candidate_id: str,
+
+    db: Session = Depends(get_db)
+
+):
+
+
+    row = db.get(
+
+        Candidate,
+
+        candidate_id
+
+    )
+
+
+
+    if row is None:
+
+        raise HTTPException(
+
+            status_code=404,
+
+            detail="Candidate not found"
+
+        )
+
+
+
+
+    db.delete(row)
+
+    db.commit()
+
+
+
+    return {
+
+        "data": {
+
+            "candidate_id": candidate_id,
+
+            "message": "Candidate deleted successfully"
+
+        },
+
+        "error": None
+
+    }
