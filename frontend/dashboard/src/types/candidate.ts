@@ -33,6 +33,10 @@ export interface CandidateSummary {
 
     created_at?: string;
 
+    status_history?: StatusHistory[];
+
+    rejected_after?: string | null;
+
 }
 
 export interface Experience {

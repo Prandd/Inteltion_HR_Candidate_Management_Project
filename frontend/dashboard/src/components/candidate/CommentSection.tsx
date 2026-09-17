@@ -43,6 +43,7 @@ interface Props {
 
 
 
+
 function CommentSection({
 
     candidate,
@@ -54,34 +55,34 @@ function CommentSection({
 
 
     const [
-
         comments,
-
         setComments
-
     ] = useState<CommentType[]>([]);
 
 
 
 
     const [
-
         text,
-
         setText
-
     ] = useState("");
 
 
 
 
     const [
+        role,
+        setRole
+    ] = useState("HR");
 
+
+
+
+    const [
         loading,
-
         setLoading
-
     ] = useState(false);
+
 
 
 
@@ -102,7 +103,9 @@ function CommentSection({
 
 
             setComments(
+
                 res.data.data ?? []
+
             );
 
 
@@ -110,7 +113,9 @@ function CommentSection({
 
         catch(error){
 
-            console.error(error);
+            console.error(
+                error
+            );
 
         }
 
@@ -125,9 +130,13 @@ function CommentSection({
 
     useEffect(()=>{
 
+
         fetchComments();
 
-    },[]);
+
+    },[
+        candidate.candidate_id
+    ]);
 
 
 
@@ -139,7 +148,8 @@ function CommentSection({
     async function addComment(){
 
 
-        if(!text.trim()) return;
+        if(!text.trim())
+            return;
 
 
 
@@ -158,9 +168,14 @@ function CommentSection({
 
                     comment:text,
 
-                    role:"HR",
+                    role:role,
 
-                    author:"HR Admin"
+                    author:
+                        role === "HR"
+                        ?
+                        "HR Admin"
+                        :
+                        "Line Manager"
 
                 }
 
@@ -185,15 +200,21 @@ function CommentSection({
 
         }
 
+
         catch(error){
 
-            console.error(error);
+            console.error(
+                error
+            );
 
         }
 
+
         finally{
 
+
             setLoading(false);
+
 
         }
 
@@ -206,7 +227,51 @@ function CommentSection({
 
 
 
+    function roleStyle(
+
+        value:string
+
+    ){
+
+
+        if(value==="Line Manager"){
+
+            return {
+
+                border:
+                "border-purple-200",
+
+                badge:
+                "bg-purple-50 text-purple-600"
+
+            };
+
+        }
+
+
+
+        return {
+
+            border:
+            "border-blue-200",
+
+            badge:
+            "bg-blue-50 text-blue-600"
+
+        };
+
+
+    }
+
+
+
+
+
+
+
+
     return (
+
 
         <section
 
@@ -231,6 +296,7 @@ function CommentSection({
                 "
 
             >
+
 
                 <h2
 
@@ -293,47 +359,104 @@ function CommentSection({
 
                 ?
 
-                comments.map(comment=>(
+                comments.map(comment=>{
 
 
-                    <div
+                    const style =
+                        roleStyle(
+                            comment.role
+                        );
 
-                        key={comment.id}
 
-                        className="
-                        border-l-2
-                        border-blue-200
-                        pl-4
-                        "
 
-                    >
-
+                    return (
 
                         <div
 
-                            className="
-                            flex
-                            justify-between
-                            "
+                            key={
+                                comment.id
+                            }
+
+                            className={`
+                            border-l-2
+                            pl-4
+                            ${style.border}
+                            `}
 
                         >
 
-                            <div>
 
 
-                                <p
+                            <div
 
-                                    className="
-                                    text-sm
-                                    font-semibold
-                                    text-gray-800
-                                    "
+                                className="
+                                flex
+                                justify-between
+                                items-start
+                                "
 
-                                >
+                            >
 
-                                    {comment.author}
 
-                                </p>
+
+                                <div>
+
+
+                                    <div
+
+                                        className="
+                                        flex
+                                        items-center
+                                        gap-2
+                                        "
+
+                                    >
+
+
+                                        <p
+
+                                            className="
+                                            text-sm
+                                            font-semibold
+                                            text-gray-800
+                                            "
+
+                                        >
+
+                                            {
+                                                comment.author
+                                            }
+
+                                        </p>
+
+
+
+                                        <span
+
+                                            className={`
+                                            text-xs
+                                            px-2
+                                            py-0.5
+                                            rounded-full
+                                            ${style.badge}
+                                            `}
+
+                                        >
+
+                                            {
+                                                comment.role
+                                            }
+
+                                        </span>
+
+
+                                    </div>
+
+
+
+                                </div>
+
+
 
 
 
@@ -346,7 +469,22 @@ function CommentSection({
 
                                 >
 
-                                    {comment.role}
+                                    {
+                                        new Date(
+                                            comment.created_at
+                                        )
+                                        .toLocaleString(
+                                            "en-GB",
+                                            {
+                                                dateStyle:
+                                                    "medium",
+
+                                                timeStyle:
+                                                    "short"
+                                            }
+                                        )
+                                    }
+
 
                                 </p>
 
@@ -357,59 +495,33 @@ function CommentSection({
 
 
 
+
                             <p
 
                                 className="
-                                text-xs
-                                text-gray-400
+                                mt-2
+                                text-sm
+                                text-gray-600
+                                leading-6
                                 "
 
                             >
 
                                 {
-                                    new Date(
-                                        comment.created_at
-                                    )
-                                    .toLocaleString(
-                                        "en-GB",
-                                        {
-                                            dateStyle:"medium",
-                                            timeStyle:"short"
-                                        }
-                                    )
+                                    comment.comment
                                 }
+
 
                             </p>
 
 
+
                         </div>
 
+                    );
 
 
-
-
-
-                        <p
-
-                            className="
-                            mt-2
-                            text-sm
-                            text-gray-600
-                            leading-6
-                            "
-
-                        >
-
-                            {comment.comment}
-
-                        </p>
-
-
-
-                    </div>
-
-
-                ))
+                })
 
 
                 :
@@ -448,15 +560,99 @@ function CommentSection({
             <div>
 
 
+                <div
+
+                    className="
+                    flex
+                    items-center
+                    justify-between
+                    mb-3
+                    "
+
+                >
+
+
+                    <label
+
+                        className="
+                        text-sm
+                        text-gray-600
+                        "
+
+                    >
+
+                        Add feedback as
+
+                    </label>
+
+
+
+
+                    <select
+
+                        value={
+                            role
+                        }
+
+
+                        onChange={
+
+                            e=>
+
+                            setRole(
+                                e.target.value
+                            )
+
+                        }
+
+
+                        className="
+                        border
+                        rounded-lg
+                        px-3
+                        py-1.5
+                        text-sm
+                        "
+
+                    >
+
+                        <option value="HR">
+
+                            HR
+
+                        </option>
+
+
+                        <option value="Line Manager">
+
+                            Line Manager
+
+                        </option>
+
+
+                    </select>
+
+
+                </div>
+
+
+
+
+
+
                 <textarea
 
 
-                    value={text}
+                    value={
+                        text
+                    }
 
 
                     onChange={
 
-                        e=>setText(
+                        e=>
+
+                        setText(
                             e.target.value
                         )
 
@@ -490,6 +686,7 @@ function CommentSection({
 
 
 
+
                 <div
 
                     className="
@@ -511,7 +708,11 @@ function CommentSection({
 
                     >
 
-                        {text.length}/500
+                        {
+                            text.length
+                        }
+
+                        /500
 
                     </span>
 
@@ -522,10 +723,14 @@ function CommentSection({
                     <button
 
 
-                        disabled={loading}
+                        disabled={
+                            loading
+                        }
 
 
-                        onClick={addComment}
+                        onClick={
+                            addComment
+                        }
 
 
                         className="
@@ -541,12 +746,19 @@ function CommentSection({
 
                     >
 
+
                         {
-                            loading
-                            ?
-                            "Adding..."
-                            :
-                            "Add Comment"
+
+                        loading
+
+                        ?
+
+                        "Adding..."
+
+                        :
+
+                        "Add Comment"
+
                         }
 
 
@@ -570,6 +782,7 @@ function CommentSection({
     );
 
 }
+
 
 
 

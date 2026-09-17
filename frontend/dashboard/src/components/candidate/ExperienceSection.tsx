@@ -32,7 +32,7 @@ function ExperienceSection({
     const [
         openIndex,
         setOpenIndex
-    ] = useState<number>(0);
+    ] = useState<number|null>(null);
 
 
 
@@ -173,7 +173,7 @@ function ExperienceSection({
 
                                             ?
 
-                                            -1
+                                            null
 
                                             :
 

@@ -228,3 +228,5 @@ class CandidateSummary(BaseModel):
     extraction_confidence: float
 
     created_at: datetime
+    
+    rejected_after: str | None = None

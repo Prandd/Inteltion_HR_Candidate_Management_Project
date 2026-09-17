@@ -181,7 +181,7 @@ def _to_summary(row: Candidate):
             or 0,
 
 
-        created_at=row.created_at
+        created_at=row.created_at,
 
     ).model_dump(mode="json")
 
@@ -214,15 +214,56 @@ def list_candidates(
     )
 
 
+    result = []
+
+
+    for row in rows:
+
+
+        summary = _to_summary(row)
+
+
+        rejected_after = None
+
+
+        if row.status == "CV rejected":
+
+
+            history = (
+
+                db.query(CandidateStatusHistory)
+
+                .filter(
+                    CandidateStatusHistory.candidate_id
+                    ==
+                    row.candidate_id
+                )
+
+                .order_by(
+                    CandidateStatusHistory.changed_at.desc()
+                )
+
+                .first()
+
+            )
+
+
+            if history:
+
+                rejected_after = history.previous_status
+
+
+
+        summary["rejected_after"] = rejected_after
+
+
+        result.append(summary)
+
+
+
     return {
 
-        "data": [
-
-            _to_summary(row)
-
-            for row in rows
-
-        ],
+        "data": result,
 
         "error": None
 
@@ -503,6 +544,17 @@ def update_candidate(
     if status_changed:
 
 
+        if data["status"] == "CV rejected":
+
+            action = (
+                f"Rejected after {old_status}"
+            )
+
+        else:
+
+            action = "Changed status"
+
+
         history = CandidateStatusHistory(
 
             candidate_id=row.candidate_id,
@@ -511,7 +563,7 @@ def update_candidate(
 
             previous_status=old_status,
 
-            action="Changed status",
+            action=action,
 
             changed_by="HR Admin"
 

@@ -169,14 +169,29 @@ function StatusHistorySection({
 
                                 <div
 
-                                    className="
-                                    absolute
-                                    left-[7px]
-                                    top-4
-                                    bottom-[-24px]
-                                    w-[2px]
-                                    bg-blue-100
-                                    "
+                                className={`
+                                absolute
+                                left-0
+                                top-2
+                                w-4
+                                h-4
+                                rounded-full
+                                border-4
+
+                                ${
+                                item.status === "CV rejected"
+
+                                ?
+
+                                "bg-red-600 border-red-100"
+
+                                :
+
+                                "bg-blue-600 border-blue-100"
+
+                                }
+
+                                `}
 
                                 />
 
@@ -192,19 +207,31 @@ function StatusHistorySection({
 
                                 <div
 
-                                    className="
-                                    absolute
-                                    left-0
-                                    top-2
-                                    w-4
-                                    h-4
-                                    rounded-full
-                                    bg-blue-600
-                                    border-4
-                                    border-blue-100
-                                    "
+                                className={`
+                                absolute
+                                left-0
+                                top-2
+                                w-4
+                                h-4
+                                rounded-full
+                                border-4
 
-                                />
+                                ${
+                                item.status === "CV rejected"
+
+                                ?
+
+                                "bg-red-600 border-red-100"
+
+                                :
+
+                                "bg-blue-600 border-blue-100"
+
+                                }
+
+                                `}
+
+/>
 
 
 
@@ -383,11 +410,17 @@ function StatusHistorySection({
                                             {" "}
 
 
-                                            {
-                                                item.action
-                                                ||
-                                                "-"
-                                            }
+                                           {
+                                            item.status === "CV rejected"
+
+                                            ?
+
+                                            `Rejected after ${item.previous_status || "-"}`
+
+                                            :
+
+                                            item.action || "-"
+                                        }
 
 
                                         </p>
@@ -432,10 +465,6 @@ function StatusHistorySection({
 
 
                                         {
-                                            item.status === "CV rejected"
-                                            &&
-                                            item.previous_status
-                                            &&
 
 
                                             <div

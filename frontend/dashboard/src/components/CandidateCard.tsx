@@ -67,6 +67,7 @@ function CandidateCard({
                 return "bg-green-50 text-green-600";
 
 
+            case "CV rejected":
             case "Rejected":
 
                 return "bg-red-50 text-red-600";
@@ -229,46 +230,63 @@ function CandidateCard({
 
 
 
-                <span
+                <div className="flex flex-col items-start gap-1">
 
 
-                    className={`
+                    <span
 
-                    text-[11px]
+                        className={`
 
-                    font-medium
+                        text-[11px]
 
-                    px-3
+                        font-medium
 
-                    py-1
+                        px-3
 
-                    rounded-full
+                        py-1
 
-                    whitespace-nowrap
+                        rounded-full
 
-                    ${
+                        whitespace-nowrap
 
-                        getStatusStyle(
+                        ${
+                            getStatusStyle(
+                                candidate.status || "New"
+                            )
+                        }
 
+                        `}
+
+                    >
+
+                        {
                             candidate.status || "New"
-
-                        )
-
-                    }
-
-                    `}
+                        }
 
 
-                >
-
-                    {
-
-                        candidate.status || "New"
-
-                    }
+                    </span>
 
 
-                </span>
+
+                        {
+                            candidate.status === "CV rejected"
+                            &&
+                            candidate.rejected_after
+                            &&
+                            <p
+                                className="
+                                text-xs
+                                text-red-500
+                                font-medium
+                                mt-1
+                                "
+                            >
+                                Rejected after {candidate.rejected_after}
+                            </p>
+                        }
+
+
+                </div>
 
 
 
