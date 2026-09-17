@@ -278,6 +278,9 @@ function Dashboard(){
 
     });
 
+    const hasCandidates =
+    sortedCandidates.length > 0;
+
 
 
     function getCandidates(status:string){
@@ -383,8 +386,10 @@ function Dashboard(){
                         bg-blue-600
                         hover:bg-blue-700
                         text-white
-                        px-5
+                        px-4
+                        md:px-5
                         py-2.5
+                        text-sm
                         rounded-xl
                         font-medium
                     "
@@ -402,7 +407,9 @@ function Dashboard(){
 
             <div className="
                 grid
-                grid-cols-6
+                grid-cols-2
+                md:grid-cols-3
+                xl:grid-cols-6
                 gap-4
                 mb-6
             ">
@@ -498,6 +505,7 @@ function Dashboard(){
 
                 <div className="
                     flex
+                    flex-wrap
                     items-center
                     gap-3
                 ">
@@ -523,7 +531,8 @@ function Dashboard(){
                         placeholder="Min Experience (years)"
                         className="
                             h-10
-                            w-64
+                            w-full
+                            md:w-64
                             bg-white
                             border
                             border-gray-200
@@ -553,7 +562,8 @@ function Dashboard(){
                         }
                         className="
                             h-10
-                            w-64
+                            w-full
+                            md:w-64
                             bg-white
                             border
                             border-gray-200
@@ -606,7 +616,8 @@ function Dashboard(){
                         }
                         className="
                             h-10
-                            w-56
+                            w-full
+                            md:w-56
                             bg-white
                             border
                             border-gray-200
@@ -646,9 +657,11 @@ function Dashboard(){
                     {/* VIEW */}
 
                     <div className="
-                        ml-auto
                         flex
                         gap-2
+                        w-full
+                        md:w-auto
+                        md:ml-auto
                     ">
 
                         <button
@@ -696,56 +709,83 @@ function Dashboard(){
 
             </div>
 
-                {/* BOARD VIEW */}
+            {/* BOARD VIEW */}
+
+{
+    view === "board" &&
+
+    (
+        hasCandidates
+
+        ?
+
+        <div className="
+            grid
+            grid-cols-1
+            md:grid-cols-2
+            xl:grid-cols-5
+            gap-5
+        ">
 
             {
-                view === "board" &&
+                columns.map(({name,color})=>(
 
-                <div className="
-                    grid
-                    grid-cols-5
-                    gap-5
-                ">
+                    <PipelineColumn
+                        key={name}
+                        name={
+                            name === "Rejected"
+                            ?
+                            "Failed / Rejected"
+                            :
+                            name
+                        }
+                        count={
+                            getCandidates(name).length
+                        }
+                        color={color}
+                    >
 
-                    {
-                        columns.map(({name,color})=>(
+                        {
+                            getCandidates(name).map(candidate=>(
 
-                            <PipelineColumn
-                                key={name}
-                                name={
-                                    name === "Rejected"
-                                    ?
-                                    "Failed / Rejected"
-                                    :
-                                    name
-                                }
-                                count={
-                                    getCandidates(name).length
-                                }
-                                color={color}
-                            >
+                                <PipelineCandidateCard
+                                    key={
+                                        candidate.candidate_id
+                                    }
+                                    candidate={candidate}
+                                />
 
-                                {
-                                    getCandidates(name).map(candidate=>(
+                            ))
+                        }
 
-                                        <PipelineCandidateCard
-                                            key={
-                                                candidate.candidate_id
-                                            }
-                                            candidate={candidate}
-                                        />
+                    </PipelineColumn>
 
-                                    ))
-                                }
-
-                            </PipelineColumn>
-
-                        ))
-                    }
-
-                </div>
+                ))
             }
 
+        </div>
+
+
+        :
+
+
+        <div
+
+            className="
+            bg-white
+            rounded-2xl
+            p-10
+            text-center
+            text-gray-400
+            "
+
+        >
+
+            No candidates found
+
+        </div>
+    )
+}
 
 
 
@@ -761,6 +801,8 @@ function Dashboard(){
                     shadow-sm
                     overflow-hidden
                 ">
+
+                    <div className="overflow-x-auto">
 
                     <table className="
                         w-full
@@ -914,7 +956,7 @@ function Dashboard(){
 
                     </table>
 
-
+                     </div>
                 </div>
 
             }

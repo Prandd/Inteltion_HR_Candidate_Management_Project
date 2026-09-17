@@ -35,12 +35,6 @@ export interface CandidateSummary {
 
 }
 
-
-
-
-
-
-
 export interface Experience {
 
 
@@ -58,13 +52,9 @@ export interface Experience {
 
     description?: string;
 
+    skills?: string[];
+
 }
-
-
-
-
-
-
 
 export interface Education {
 
@@ -82,12 +72,6 @@ export interface Education {
 
 }
 
-
-
-
-
-
-
 export interface CandidateSkill {
 
 
@@ -98,73 +82,102 @@ export interface CandidateSkill {
 
 }
 
-
-
-
-
-
-
 export interface CandidateDetailType {
-
 
     candidate_id:string;
 
-
     full_name?:string;
-
 
     applied_position?:string;
 
-
     location?:string;
-
 
     email?:string;
 
-
     phone?:string;
-
 
     experience_total?:number;
 
-
     status?:string;
 
-
-
-
-    skills?: CandidateSkill[];
-
-
-
+    skills?:CandidateSkill[];
 
     summary?:string;
 
+    experience?:Experience[];
 
-
-    experience?: Experience[];
-
-
-
-    education?: Education[];
-
-
-
+    education?:Education[];
 
     resume_url?:string;
 
-
-
     resume_filename?:string;
-
 
     top_skills?:string[];
 
+    hr_comment?:string;
+
+    line_manager_comment?:string;
+
+    extraction_confidence?:number;
+
+    status_history?:StatusHistory[];
+
+    evaluation?: Evaluation;
+
+    created_at?: string;
+
+}
+
+
+export interface Evaluation {
+
+    overall_score?:number;
+
+    recommendation?:string;
+
+    technical_score?:number;
+
+    communication_score?:number;
+
+    experience_score?:number;
+
+}
+
+
+export interface CandidateComment {
 
     hr_comment?:string;
 
+    line_manager_comment?:string;
+
+}
 
 
-    extraction_confidence?:number;
+export interface StatusHistory {
+
+
+    status:string;
+
+    action?:string;
+
+    changed_by?:string;
+
+    changed_at?:string;
+
+    previous_status?:string;
+
+}
+
+export interface CandidateComment {
+
+    id:number;
+
+    author:string;
+
+    role:string;
+
+    comment:string;
+
+    created_at:string;
 
 }

@@ -7,7 +7,6 @@ import api from "../api/axios";
 
 
 
-
 interface Props {
 
     candidateId:string;
@@ -17,9 +16,6 @@ interface Props {
     onUpdate?:()=>void;
 
 }
-
-
-
 
 
 
@@ -37,39 +33,25 @@ function StatusDropdown({
 
 
     const [
-
         status,
-
         setStatus
-
     ] = useState(currentStatus);
 
 
 
 
-
     const [
-
         loading,
-
         setLoading
-
     ] = useState(false);
-
 
 
 
 
     const [
-
         open,
-
         setOpen
-
     ] = useState(false);
-
-
-
 
 
 
@@ -80,18 +62,23 @@ function StatusDropdown({
 
         "New",
 
+        "Review",
+
+        "Needs information",
+
+        "CV passed",
+
         "Assessment",
 
         "Interview",
 
         "Hired",
 
-        "Rejected",
+        "CV rejected",
 
-        "Needs information"
+        "Archived"
 
     ];
-
 
 
 
@@ -148,7 +135,7 @@ function StatusDropdown({
 
 
 
-            case "Rejected":
+            case "CV rejected":
 
                 return {
 
@@ -168,6 +155,34 @@ function StatusDropdown({
 
                     badge:
                     "bg-gray-100 text-gray-600",
+
+                    dot:
+                    "bg-gray-400"
+
+                };
+
+
+
+            case "CV passed":
+
+                return {
+
+                    badge:
+                    "bg-cyan-50 text-cyan-600",
+
+                    dot:
+                    "bg-cyan-500"
+
+                };
+
+
+
+            case "Archived":
+
+                return {
+
+                    badge:
+                    "bg-gray-100 text-gray-500",
 
                     dot:
                     "bg-gray-400"
@@ -200,11 +215,29 @@ function StatusDropdown({
 
 
 
+
+
     async function updateStatus(
 
         value:string
 
     ){
+
+
+
+        if(value === status){
+
+            setOpen(false);
+
+            return;
+
+        }
+
+
+
+
+        const previousStatus = status;
+
 
 
         try{
@@ -213,10 +246,14 @@ function StatusDropdown({
             setLoading(true);
 
 
-            setStatus(value);
-
 
             setOpen(false);
+
+
+
+            // optimistic update
+
+            setStatus(value);
 
 
 
@@ -228,7 +265,9 @@ function StatusDropdown({
 
                 {
 
-                    status:value
+                    status:value,
+
+                    previous_status:previousStatus
 
                 }
 
@@ -256,7 +295,8 @@ function StatusDropdown({
             console.error(error);
 
 
-            setStatus(currentStatus);
+
+            setStatus(previousStatus);
 
 
         }
@@ -278,11 +318,8 @@ function StatusDropdown({
 
 
 
-
-
-
-    const current = statusStyle(status);
-
+    const current =
+        statusStyle(status);
 
 
 
@@ -297,9 +334,7 @@ function StatusDropdown({
         <div
 
             className="
-
             relative
-
             "
 
         >
@@ -308,10 +343,7 @@ function StatusDropdown({
 
 
 
-
-
-
-            {/* STATUS BUTTON */}
+            {/* CURRENT STATUS */}
 
 
 
@@ -350,11 +382,7 @@ function StatusDropdown({
 
                 hover:shadow-sm
 
-                ${
-
-                    current.badge
-
-                }
+                ${current.badge}
 
                 `}
 
@@ -365,7 +393,6 @@ function StatusDropdown({
 
                 <span
 
-
                     className={`
 
                     w-2
@@ -374,31 +401,24 @@ function StatusDropdown({
 
                     rounded-full
 
-                    ${
-
-                        current.dot
-
-                    }
+                    ${current.dot}
 
                     `}
-
 
                 />
 
 
 
-
                 {
+                    loading
 
-                loading
+                    ?
 
-                ?
+                    "Updating..."
 
-                "Updating..."
+                    :
 
-                :
-
-                status
+                    status
 
                 }
 
@@ -408,11 +428,8 @@ function StatusDropdown({
                 <span
 
                     className="
-
                     text-xs
-
                     opacity-60
-
                     "
 
                 >
@@ -420,7 +437,6 @@ function StatusDropdown({
                     ▾
 
                 </span>
-
 
 
 
@@ -434,7 +450,7 @@ function StatusDropdown({
 
 
 
-            {/* MENU */}
+            {/* DROPDOWN */}
 
 
 
@@ -476,19 +492,17 @@ function StatusDropdown({
 
 
 
-
-
                 {
 
                 statuses.map(item=>{
 
 
-                    const style = statusStyle(item);
+                    const style =
+                        statusStyle(item);
 
 
 
                     return (
-
 
 
                     <button
@@ -502,7 +516,6 @@ function StatusDropdown({
                             ()=>updateStatus(item)
 
                         }
-
 
 
                         className={`
@@ -523,25 +536,21 @@ function StatusDropdown({
 
                         text-sm
 
-                        transition
-
                         hover:bg-gray-50
 
 
                         ${
+                            item===status
 
-                        item===status
+                            ?
 
-                        ?
+                            "bg-gray-50 font-semibold"
 
-                        "bg-gray-50 font-semibold"
+                            :
 
-                        :
-
-                        "text-gray-700"
+                            "text-gray-700"
 
                         }
-
 
                         `}
 
@@ -552,7 +561,6 @@ function StatusDropdown({
 
                         <span
 
-
                             className={`
 
                             w-2
@@ -561,25 +569,15 @@ function StatusDropdown({
 
                             rounded-full
 
-                            ${
-
-                                style.dot
-
-                            }
+                            ${style.dot}
 
                             `}
-
 
                         />
 
 
 
-
-
                         {item}
-
-
-
 
 
                     </button>
@@ -587,11 +585,9 @@ function StatusDropdown({
 
                     );
 
-
                 })
 
                 }
-
 
 
             </div>
@@ -606,10 +602,7 @@ function StatusDropdown({
 
     );
 
-
 }
-
-
 
 
 

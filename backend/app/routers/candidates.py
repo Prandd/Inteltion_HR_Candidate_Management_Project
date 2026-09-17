@@ -3,6 +3,7 @@ import sys
 import uuid
 
 from datetime import datetime, timezone
+from ..models_db import Candidate, CandidateStatusHistory
 
 from fastapi import (
     APIRouter,
@@ -50,7 +51,11 @@ except Exception as e:
 
 from ..config import settings
 from ..database import get_db
-from ..models_db import Candidate
+from ..models_db import (
+    Candidate,
+    CandidateStatusHistory,
+    CandidateComment
+)
 
 from ..schemas import (
     STATUS_VALUES,
@@ -58,6 +63,8 @@ from ..schemas import (
     CandidateOut,
     CandidateSummary,
     CandidateUpdate,
+    CommentCreate,
+    CommentOut
 )
 
 from ..storage import storage
@@ -257,21 +264,160 @@ def get_candidate(
             detail="Candidate not found"
 
         )
+    
+    history = (
+
+        db.query(CandidateStatusHistory)
+
+        .filter(
+            CandidateStatusHistory.candidate_id
+            ==
+            row.candidate_id
+        )
+
+        .order_by(
+            CandidateStatusHistory.changed_at.desc()
+        )
+
+        .all()
+
+    )
+    
+    data = _to_out(row)
+
+    data["status_history"] = [
+
+        {
+            "status": h.status,
+            "previous_status": h.previous_status,
+            "action": h.action,
+            "changed_by": h.changed_by,
+            "changed_at": h.changed_at
+        }
+
+        for h in history
+
+    ]
 
 
     return {
-
-        "data":
-
-            _to_out(row),
-
+        "data": data,
         "error": None
-
     }
 
 
 
 
+# ==================================================
+# COMMENTS
+# ==================================================
+
+
+@router.get("/candidates/{candidate_id}/comments")
+def get_comments(
+
+    candidate_id: str,
+
+    db: Session = Depends(get_db)
+
+):
+
+    candidate = db.get(
+        Candidate,
+        candidate_id
+    )
+
+
+    if candidate is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate not found"
+        )
+
+
+    comments = (
+
+        db.query(CandidateComment)
+
+        .filter(
+            CandidateComment.candidate_id
+            ==
+            candidate_id
+        )
+
+        .order_by(
+            CandidateComment.created_at.desc()
+        )
+
+        .all()
+
+    )
+
+
+    return {
+
+        "data": comments,
+
+        "error": None
+
+    }
+    
+@router.post("/candidates/{candidate_id}/comments")
+def create_comment(
+
+    candidate_id: str,
+
+    payload: CommentCreate,
+
+    db: Session = Depends(get_db)
+
+):
+
+
+    candidate = db.get(
+        Candidate,
+        candidate_id
+    )
+
+
+    if candidate is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Candidate not found"
+        )
+
+
+
+    comment = CandidateComment(
+
+        candidate_id=candidate_id,
+
+        author=payload.author,
+
+        role=payload.role,
+
+        comment=payload.comment
+
+    )
+
+
+    db.add(comment)
+
+    db.commit()
+
+    db.refresh(comment)
+
+
+
+    return {
+
+        "data": comment,
+
+        "error": None
+
+    }
 
 # ==================================================
 # UPDATE
@@ -343,6 +489,39 @@ def update_candidate(
                 detail="Invalid status"
 
             )
+
+    old_status = row.status
+
+
+    status_changed = (
+        "status" in data
+        and data["status"] != old_status
+    )
+
+
+
+    if status_changed:
+
+
+        history = CandidateStatusHistory(
+
+            candidate_id=row.candidate_id,
+
+            status=data["status"],
+
+            previous_status=old_status,
+
+            action="Changed status",
+
+            changed_by="HR Admin"
+
+        )
+
+
+        db.add(history)
+
+
+
 
 
     for key, value in data.items():
@@ -444,11 +623,39 @@ def get_resume_url(
 )
 async def upload_candidate(
 
-    file: UploadFile = File(...),
+    file: UploadFile,
+
+    force: bool = False,
+
+    candidate_id: str | None = None,
 
     db: Session = Depends(get_db)
 
 ):
+
+
+    print(
+        "========== UPLOAD DEBUG =========="
+    )
+
+    print(
+        "force =",
+        force
+    )
+
+    print(
+        "candidate_id =",
+        candidate_id
+    )
+
+    print(
+        "filename =",
+        file.filename
+    )
+
+    print(
+        "=================================="
+    )
 
 
     # -------------------------------
@@ -513,16 +720,11 @@ async def upload_candidate(
     # Create candidate id
     # -------------------------------
 
-    candidate_id = str(
+    if not force:
 
-        uuid.uuid4()
-
-    )
-
-
-
-
-
+        candidate_id = str(
+            uuid.uuid4()
+        )
     # -------------------------------
     # Save resume
     # -------------------------------
@@ -552,6 +754,56 @@ async def upload_candidate(
         filename=file.filename
 
     )
+    
+    # -------------------------------
+    # Duplicate Check
+    # -------------------------------
+
+    if not force:
+
+        existing = None
+
+
+        if raw.get("email"):
+
+            existing = (
+                db.query(Candidate)
+                .filter(
+                    Candidate.email == raw["email"]
+                )
+                .first()
+            )
+
+
+        if existing:
+
+            return {
+                "duplicate": True,
+
+                "candidate": {
+                    "candidate_id":
+                        existing.candidate_id,
+
+                    "full_name":
+                        existing.full_name,
+
+                    "email":
+                        existing.email,
+
+                    "phone":
+                        existing.phone,
+
+                    "applied_position":
+                        existing.applied_position,
+
+                    "status":
+                        existing.status
+                },
+
+                "data": None,
+
+                "error": None
+            }
 
 
 
@@ -679,30 +931,84 @@ async def upload_candidate(
     # Save database
     # -------------------------------
 
-    row = Candidate(
+    # -------------------------------
+    # Save database
+    # -------------------------------
 
-        candidate_id=candidate_id,
-
-
-        resume_url=stored["url"],
-
-
-        resume_filename=stored["filename"],
+    if force and candidate_id:
 
 
-        **fields
-
-    )
-
-
-
+        row = db.get(
+            Candidate,
+            candidate_id
+        )
 
 
-    db.add(row)
+        if row is None:
+
+            raise HTTPException(
+                status_code=404,
+                detail="Candidate not found"
+            )
+
+
+        # Update existing candidate
+
+        for key, value in fields.items():
+
+            setattr(
+                row,
+                key,
+                value
+            )
+
+
+        row.resume_url = stored["url"]
+
+        row.resume_filename = stored["filename"]
+        
+        history = CandidateStatusHistory(
+
+            candidate_id=row.candidate_id,
+
+            status=row.status,
+
+            previous_status=row.status,
+
+            action="Resume replaced",
+
+            changed_by="HR Admin"
+
+        )
+
+
+        db.add(history)
+
+        row.updated_at = datetime.now(
+            timezone.utc
+        )
+
+
+
+    else:
+
+        row = Candidate(
+
+            candidate_id=candidate_id,
+
+            resume_url=stored["url"],
+
+            resume_filename=stored["filename"],
+
+            **fields
+
+        )
+
+
+        db.add(row)
 
 
     db.commit()
-
 
     db.refresh(row)
 
@@ -712,10 +1018,10 @@ async def upload_candidate(
 
     return {
 
+        "duplicate": False,
+
         "data":
-
             _to_out(row),
-
 
         "error": None
 

@@ -1,0 +1,88 @@
+[
+  {
+    "file": "Kanyapuk Intharaprasit.pdf",
+    "candidate": {
+      "candidate_id": null,
+      "full_name": "Kanyapukintharaprasit",
+      "email": "jajajeab.jajajeab@gmail.com",
+      "phone": "(+66) 98-795-9916",
+      "applied_position": "",
+      "summary": "Data Analyst and AI Engineer with experience in operational data analysis, dashboard development, OCR systems, and AI-driven applications using Python and machine learning frameworks. Experienced with Google BigQuery, Looker Studio, TensorFlow, PyTorch, and Streamlit-based projects.",
+      "skills": [
+        {
+          "skill": "Programming & Tools",
+          "tools": [
+            "Python",
+            "SQL",
+            "R",
+            "Google Looker Studio",
+            "Tableau"
+          ]
+        },
+        {
+          "skill": "Frameworks",
+          "tools": [
+            "PyTorch",
+            "TensorFlow",
+            "OpenCV",
+            "Pandas",
+            "NumPy",
+            "Matplotlib",
+            "Seaborn"
+          ]
+        },
+        {
+          "skill": "Languages",
+          "tools": [
+            "English",
+            "Thai"
+          ]
+        }
+      ],
+      "experience": [
+        {
+          "company": "Smart System Solution - SCG Group",
+          "position": "Operation Data Analyst",
+          "start_date": "2025-08",
+          "end_date": "Present",
+          "description": "Extracted and transformed large-scale operational data using Google BigQuery and Python, and built automated dashboards in Looker Studio to track KPIs on service provider performance, demand fulfillment, and supply-demand gaps for cross-functional stakeholders. Developed internal workflow applications using AppSheet and Google Apps Script to automate data collection, validation, and reporting processes, reducing manual effort and enabling the Supply team to identify bottlenecks and drive operational improvements in real time."
+        },
+        {
+          "company": "NXPO",
+          "position": "Data Analyst",
+          "start_date": "2025-02",
+          "end_date": "2025-07",
+          "description": "Conducted end-to-end data collection, cleaning, and analysis using Python on large datasets independently, uncovering trends and correlations that informed research and policy improvements. Designed and developed comprehensive Google Looker Studio dashboards and presentations, delivering data-driven recommendations that enhanced operational efficiency and overall performance."
+        },
+        {
+          "company": "ZTRUS",
+          "position": "AI Engineer, Contract",
+          "start_date": "2024-11",
+          "end_date": "2025-01",
+          "description": "Acted as a full-time owner for an AI-driven OCR document-based system, ensuring the development and delivery align with business goals and technical specifications. Leveraged Python to design, develop, and integrate proprietary OCR technology, delivering scalable and efficient solutions for document processing and automated data extraction. Improved processing accuracy and performance, streamlining workflows and reducing manual intervention."
+        }
+      ],
+      "experience_total": 1.9,
+      "current_salary": 0.0,
+      "expected_salary": 0.0,
+      "education": [
+        {
+          "institution": "Thammasat University",
+          "degree": "Master of Science",
+          "field": "Data Science",
+          "year": "2024"
+        },
+        {
+          "institution": "Kasetsart University",
+          "degree": "Bachelor of Science",
+          "field": "Nuclear Science",
+          "year": "2019"
+        }
+      ],
+      "hr_comment": "",
+      "line_manager_comment": "",
+      "extraction_confidence": 0.89,
+      "raw_text_snippet": "KANYAPUKINTHARAPRASIT\n♂phone(+66) 98-795-9916 ✉ jajajeab.jajajeab@gmail.com /linkedinLinkedIn /githubGitHub\nSkills\nProgramming & Tools:Python, SQL, R, Visualization tools (Google Looker Studio, Tableau)\nFrameworks:PyTorch, TensorFlow, OpenCV, Pandas, NumPy , Matplotlib, Seaborn\nLanguages:English (Limited working proficiency), Thai (Native)\nExperience\nSmart System Solution - SCG Group Bangkok, Thailand Aug 2025 – Present\nOperation Data Analyst\n– Ext"
+    }
+  }
+]

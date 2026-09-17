@@ -4,11 +4,6 @@ import {
 } from "react";
 
 
-import type {
-    ReactNode
-} from "react";
-
-
 import {
     useParams,
     useNavigate
@@ -18,31 +13,55 @@ import {
 import api from "../api/axios";
 
 
-import StatusDropdown from "../components/StatusDropdown";
-
-
 import type {
     CandidateDetailType
 } from "../types/candidate";
 
 
 
+import CandidateHeader from "../components/candidate/CandidateHeader";
 
+import CandidateSummary from "../components/candidate/CandidateSummary";
+
+import ExperienceSection from "../components/candidate/ExperienceSection";
+
+import EducationSection from "../components/candidate/EducationSection";
+
+import SkillsSection from "../components/candidate/SkillsSection";
+
+import ContactSection from "../components/candidate/ContactSection";
+
+import ResumeSection from "../components/candidate/ResumeSection";
+
+import StatusHistorySection from "../components/candidate/StatusHistorySection";
+
+import CommentSection from "../components/candidate/CommentSection";
+
+import SectionCard from "../components/candidate/SectionCard";
+
+import {
+    useLocation,
+} from "react-router-dom";
 
 
 
 function CandidateDetail(){
 
 
-    const {id}=useParams();
+    const {
+        id
+    } = useParams();
 
 
 
     const navigate = useNavigate();
 
 
+    const location = useLocation();
 
 
+    const fromDuplicateUpload =
+    location.state?.fromDuplicateUpload;
 
     const [
         candidate,
@@ -62,12 +81,10 @@ function CandidateDetail(){
 
 
 
-
     async function fetchCandidate(){
 
 
         if(!id)
-
             return;
 
 
@@ -75,47 +92,31 @@ function CandidateDetail(){
         try{
 
 
-            const response =
-
+            const res =
                 await api.get(
-
                     `/candidates/${id}`
-
                 );
 
 
-
             setCandidate(
-
-                response.data.data
-
+                res.data.data
             );
 
 
         }
+        catch(err){
 
-
-        catch(error){
-
-
-            console.error(error);
-
+            console.error(err);
 
         }
-
-
         finally{
 
-
             setLoading(false);
-
 
         }
 
 
     }
-
-
 
 
 
@@ -126,19 +127,12 @@ function CandidateDetail(){
     async function deleteCandidate(){
 
 
-
-        const confirmDelete = window.confirm(
-
-            "Are you sure you want to delete this candidate?"
-
-        );
-
-
-
-        if(!confirmDelete)
-
+        if(
+            !window.confirm(
+                "Are you sure you want to delete this candidate?"
+            )
+        )
             return;
-
 
 
 
@@ -147,37 +141,17 @@ function CandidateDetail(){
 
 
             await api.delete(
-
                 `/candidates/${id}`
-
             );
-
 
 
             navigate("/");
 
 
         }
+        catch(err){
 
-
-        catch(error){
-
-
-            console.error(
-
-                "Delete candidate failed",
-
-                error
-
-            );
-
-
-            alert(
-
-                "Failed to delete candidate"
-
-            );
-
+            console.error(err);
 
         }
 
@@ -190,13 +164,9 @@ function CandidateDetail(){
 
 
 
-
-
     useEffect(()=>{
 
-
         fetchCandidate();
-
 
     },[id]);
 
@@ -206,64 +176,46 @@ function CandidateDetail(){
 
 
 
-
-    if(loading)
-
+    if(loading){
 
         return (
 
-
             <div className="p-10">
-
 
                 Loading candidate...
 
-
             </div>
-
 
         );
 
+    }
 
 
 
 
 
-
-    if(!candidate)
-
+    if(!candidate){
 
         return (
-
 
             <div className="p-10">
 
-
                 Candidate not found
-
 
             </div>
 
-
         );
 
+    }
 
 
 
 
 
 
-    const confidence = Math.round(
 
-        (candidate.extraction_confidence ?? 0)
+    return (
 
-        *
-
-        100
-
-    );
-
-        return (
 
         <div
 
@@ -276,13 +228,12 @@ function CandidateDetail(){
         >
 
 
-
             <div
 
                 className="
-                max-w-6xl
+                max-w-7xl
                 mx-auto
-                space-y-5
+                space-y-6
                 "
 
             >
@@ -290,360 +241,105 @@ function CandidateDetail(){
 
 
 
+                {/* HEADER */}
 
 
+                <CandidateHeader
+
+                    candidate={candidate}
+
+                    onDelete={deleteCandidate}
+
+                    onUpdate={fetchCandidate}
+
+                />
 
 
-                {/* PROFILE HEADER */}
-
-
-
-                <div
-
-                    className="
-                    bg-white
-                    border
-                    rounded-2xl
-                    p-6
-                    flex
-                    justify-between
-                    "
-
-                >
-
-
-
+            {
+                    fromDuplicateUpload &&
 
                     <div
-
                         className="
+                        bg-orange-50
+                        border
+                        border-orange-200
+                        rounded-xl
+                        p-4
                         flex
-                        gap-5
+                        justify-between
                         items-center
                         "
-
                     >
-
-
-
-                        <div
-
-                            className="
-                            w-20
-                            h-20
-                            rounded-2xl
-                            bg-blue-600
-                            text-white
-                            flex
-                            items-center
-                            justify-center
-                            text-3xl
-                            font-bold
-                            "
-
-                        >
-
-                            {
-                                candidate.full_name
-                                ?.charAt(0)
-                            }
-
-                        </div>
-
-
-
-
-
-
 
                         <div>
 
-
-                            <h1
-
-                                className="
-                                text-2xl
-                                font-bold
-                                "
-
-                            >
-
-                                {
-                                    candidate.full_name
-                                }
-
-                            </h1>
-
-
-
-
-                            <p
-
-                                className="
-                                text-gray-500
-                                mt-1
-                                "
-
-                            >
-
-                                {
-                                    candidate.applied_position || "-"
-                                }
-
+                            <p className="
+                            text-sm
+                            font-semibold
+                            text-orange-700
+                            ">
+                                Duplicate candidate detected
                             </p>
 
 
-
-
-                            <p
-
-                                className="
-                                text-sm
-                                text-gray-400
-                                mt-2
-                                "
-
-                            >
-
-                                📍 {candidate.location || "-"}
-
+                            <p className="
+                            text-xs
+                            text-orange-600
+                            mt-1
+                            ">
+                                You can return to upload and replace this candidate.
                             </p>
-
-
 
                         </div>
-
-
-
-                    </div>
-
-
-
-
-
-
-
-
-                    <div
-
-                        className="
-                        flex
-                        items-end
-                        gap-4
-                        "
-
-                    >
-
-
-
-
-
-
-                        {/* DELETE BUTTON */}
-
 
 
                         <button
 
+                            onClick={()=>{
 
-                            onClick={deleteCandidate}
+                                
+
+                                console.log(
+                                    "SEND STATE",
+                                    {
+                                        forceUpload:true,
+                                        duplicateCandidateId:candidate.candidate_id
+                                    }
+                                );
 
 
+                                navigate(
+                                    "/upload",
+                                    {
+                                        state:{
+                                            forceUpload:true,
+                                            duplicateCandidateId:candidate.candidate_id
+                                        }
+                                    }
+                                );
+
+                            }}
 
                             className="
-
-                            h-10
-
                             px-4
-
-                            bg-red-50
-
-                            text-red-600
-
-                            border
-
-                            border-red-200
-
-                            rounded-lg
-
-                            text-sm
-
-                            font-medium
-
-                            hover:bg-red-100
-
+                            py-2
+                            rounded-xl
+                            bg-orange-500
+                            text-white
                             "
-
 
                         >
 
-                            Delete Candidate
-
+                            Upload Anyway
 
                         </button>
 
 
-
-
-
-
-
-
-
-                        <div>
-
-
-                            <p
-
-                                className="
-                                text-xs
-                                text-gray-400
-                                mb-2
-                                "
-
-                            >
-
-                                Status
-
-                            </p>
-
-
-
-                            <StatusDropdown
-
-
-                                candidateId={
-
-                                    candidate.candidate_id
-
-                                }
-
-
-                                currentStatus={
-
-                                    candidate.status || "New"
-
-                                }
-
-
-                                onUpdate={
-
-                                    fetchCandidate
-
-                                }
-
-
-                            />
-
-                        </div>
-
-
-
-
-
-
-
-
-
-                        <div
-
-                            className="
-                            w-32
-                            "
-
-                        >
-
-                            <div
-
-                                className="
-                                flex
-                                justify-between
-                                text-xs
-                                mb-2
-                                "
-
-                            >
-
-                                <span
-
-                                    className="
-                                    text-gray-400
-                                    "
-
-                                >
-
-                                    AI Match
-
-                                </span>
-
-
-                                <b
-
-                                    className="
-                                    text-blue-600
-                                    "
-
-                                >
-
-                                    {confidence}%
-
-                                </b>
-
-
-                            </div>
-
-
-
-
-
-                            <div
-
-                                className="
-                                h-2
-                                bg-gray-100
-                                rounded-full
-                                overflow-hidden
-                                "
-
-                            >
-
-
-                                <div
-
-                                    className="
-                                    h-full
-                                    bg-blue-600
-                                    rounded-full
-                                    "
-
-                                    style={{
-
-                                        width:
-
-                                        `${confidence}%`
-
-                                    }}
-
-                                />
-
-
-                            </div>
-
-
-                        </div>
-
-
-
-
                     </div>
+                }
 
 
 
-
-
-                </div>
-
-                        {/* GRID */}
 
 
 
@@ -651,8 +347,8 @@ function CandidateDetail(){
 
                     className="
                     grid
-                    grid-cols-3
-                    gap-5
+                    grid-cols-12
+                    gap-6
                     "
 
                 >
@@ -661,12 +357,14 @@ function CandidateDetail(){
 
 
 
+                    {/* LEFT CONTENT */}
+
 
                     <div
 
                         className="
-                        col-span-2
-                        space-y-5
+                        col-span-8
+                        space-y-6
                         "
 
                     >
@@ -675,32 +373,11 @@ function CandidateDetail(){
 
 
 
-                        <InfoCard title="AI Summary">
+                        <CandidateSummary
 
+                            candidate={candidate}
 
-                            <div
-
-                                className="
-                                bg-blue-50
-                                rounded-xl
-                                p-5
-                                text-gray-700
-                                text-sm
-                                "
-
-                            >
-
-                                {
-                                    candidate.summary ||
-
-                                    "No summary available"
-                                }
-
-
-                            </div>
-
-
-                        </InfoCard>
+                        />
 
 
 
@@ -708,106 +385,93 @@ function CandidateDetail(){
 
 
 
+                        <SectionCard
 
-                        <InfoCard title="Experience">
+                            title="Experience"
 
+                        >
 
-                        {
+                            {
 
+                                candidate.experience?.length
 
-                        candidate.experience?.length
+                                ?
 
-                        ?
+                                <ExperienceSection
 
+                                    candidate={candidate}
 
-                        candidate.experience.map((exp,index)=>(
+                                />
 
+                                :
 
-                            <div
+                                <p className="text-gray-400">
 
-                                key={index}
+                                    No experience available
 
-                                className="
-                                border-l-2
-                                border-blue-500
-                                pl-5
-                                mb-5
-                                "
+                                </p>
 
-                            >
-
-                                <h3
-
-                                    className="
-                                    font-semibold
-                                    "
-
-                                >
-
-                                    {exp.position}
+                            }
 
 
-                                </h3>
+                        </SectionCard>
 
 
-                                <p
 
-                                    className="
-                                    text-sm
-                                    "
 
-                                >
 
-                                    {exp.company}
 
+
+
+
+                        <SectionCard
+
+                            title="Education"
+
+                        >
+
+
+                            {
+
+                                candidate.education?.length
+
+                                ?
+
+                                <EducationSection
+
+                                    candidate={candidate}
+
+                                />
+
+                                :
+
+                                <p className="text-gray-400">
+
+                                    No education available
 
                                 </p>
 
 
-
-                                <p
-
-                                    className="
-                                    text-xs
-                                    text-gray-400
-                                    mt-1
-                                    "
-
-                                >
-
-                                    {exp.start_date}
-
-                                    {" - "}
-
-                                    {exp.end_date}
+                            }
 
 
-                                </p>
-
-
-                            </div>
-
-
-                        ))
-
-
-                        :
-
-
-                        <p className="text-gray-400">
-
-                            No experience
-
-                        </p>
-
-
-                        }
-
-
-                        </InfoCard>
+                        </SectionCard>
 
 
 
+
+
+
+
+
+
+                        <CommentSection
+
+                            candidate={candidate}
+
+                            onUpdate={fetchCandidate}
+
+                        />
 
 
 
@@ -822,10 +486,16 @@ function CandidateDetail(){
 
 
 
+
+                    {/* RIGHT SIDEBAR */}
+
+
+
                     <div
 
                         className="
-                        space-y-5
+                        col-span-4
+                        space-y-6
                         "
 
                     >
@@ -833,36 +503,24 @@ function CandidateDetail(){
 
 
 
-                        <InfoCard title="Contact">
+
+                        <ContactSection
+
+                            candidate={candidate}
+
+                        />
 
 
-                            <InfoItem
-
-                                label="Email"
-
-                                value={
-
-                                    candidate.email || "-"
-
-                                }
-
-                            />
 
 
-                            <InfoItem
-
-                                label="Phone"
-
-                                value={
-
-                                    candidate.phone || "-"
-
-                                }
-
-                            />
 
 
-                        </InfoCard>
+
+                        <ResumeSection
+
+                            candidate={candidate}
+
+                        />
 
 
 
@@ -871,114 +529,55 @@ function CandidateDetail(){
 
 
 
-                        <InfoCard title="Skills">
 
+                        <SectionCard
 
-                            <div
+                            title="Skills"
 
-                                className="
-                                flex
-                                flex-wrap
-                                gap-2
-                                "
-
-                            >
+                        >
 
 
                             {
 
+                                candidate.skills?.length
 
-                            candidate.skills?.map(skill=>(
+                                ?
 
+                                <SkillsSection
 
-                                <span
+                                    candidate={candidate}
 
-                                    key={skill.skill}
+                                />
 
-                                    className="
-                                    bg-blue-50
-                                    text-blue-700
-                                    px-3
-                                    py-1
-                                    rounded-full
-                                    text-xs
-                                    "
+                                :
 
-                                >
+                                <p className="text-gray-400">
 
-                                    {skill.skill}
+                                    No skills available
 
-
-                                </span>
-
-
-                            ))
+                                </p>
 
 
                             }
 
 
-                            </div>
-
-
-                        </InfoCard>
+                        </SectionCard>
 
 
 
 
 
 
-                        <InfoCard title="Resume">
 
 
-                            {
+                        <StatusHistorySection
+
+                            candidate={candidate}
+
+                        />
 
 
-                            candidate.resume_url
 
-
-                            ?
-
-
-                            <a
-
-                                href={candidate.resume_url}
-
-                                target="_blank"
-
-                                className="
-                                block
-                                text-center
-                                bg-blue-600
-                                text-white
-                                py-3
-                                rounded-xl
-                                text-sm
-                                font-medium
-                                "
-
-                            >
-
-                                Download Resume
-
-
-                            </a>
-
-
-                            :
-
-
-                            <p className="text-gray-400">
-
-                                No resume available
-
-                            </p>
-
-
-                            }
-
-
-                        </InfoCard>
 
 
 
@@ -987,7 +586,6 @@ function CandidateDetail(){
 
 
                 </div>
-
 
 
 
@@ -996,141 +594,13 @@ function CandidateDetail(){
             </div>
 
 
-
         </div>
 
-    );
-
-
-}
-
-
-
-
-
-
-
-
-
-function InfoCard({
-
-    title,
-
-    children
-
-}:{
-
-    title:string;
-
-    children:ReactNode;
-
-}){
-
-
-    return (
-
-        <section
-
-            className="
-            bg-white
-            border
-            rounded-2xl
-            p-5
-            "
-
-        >
-
-
-            <h2
-
-                className="
-                font-bold
-                text-base
-                mb-4
-                "
-
-            >
-
-                {title}
-
-            </h2>
-
-
-            {children}
-
-
-        </section>
 
     );
 
 }
 
-
-
-
-
-
-
-function InfoItem({
-
-    label,
-
-    value
-
-}:{
-
-    label:string;
-
-    value:string;
-
-}){
-
-
-    return (
-
-        <div
-
-            className="
-            mb-4
-            "
-
-        >
-
-
-            <p
-
-                className="
-                text-xs
-                text-gray-400
-                "
-
-            >
-
-                {label}
-
-            </p>
-
-
-            <p
-
-                className="
-                text-sm
-                font-medium
-                mt-1
-                "
-
-            >
-
-                {value}
-
-            </p>
-
-
-        </div>
-
-    );
-
-}
 
 
 export default CandidateDetail;

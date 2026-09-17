@@ -2,13 +2,9 @@ import {
     useNavigate
 } from "react-router-dom";
 
-
 import type {
     CandidateSummary
 } from "../types/candidate";
-
-
-
 
 
 interface Props {
@@ -16,11 +12,6 @@ interface Props {
     candidate: CandidateSummary;
 
 }
-
-
-
-
-
 
 
 
@@ -34,14 +25,8 @@ function PipelineCandidateCard({
     const navigate = useNavigate();
 
 
-
-
-
     const status =
         candidate.status || "New";
-
-
-
 
 
     const skills =
@@ -49,224 +34,202 @@ function PipelineCandidateCard({
 
 
 
+    const statusStyle:Record<string,{
+        badge:string;
+        dot:string;
+    }> = {
 
+        New:{
+            badge:"bg-blue-50 text-blue-600",
+            dot:"bg-blue-500"
+        },
 
-    const confidence =
+        Assessment:{
+            badge:"bg-orange-50 text-orange-600",
+            dot:"bg-orange-500"
+        },
 
-        Math.round(
+        Interview:{
+            badge:"bg-purple-50 text-purple-600",
+            dot:"bg-purple-500"
+        },
 
-            (candidate.extraction_confidence ?? 0)
+        Hired:{
+            badge:"bg-green-50 text-green-600",
+            dot:"bg-green-500"
+        },
 
-            *
-
-            100
-
-        );
-
-
-
-
-
-
-
-    const statusStyle:Record<string,string> = {
-
-
-        New:
-        "bg-blue-50 text-blue-600",
-
-
-        Assessment:
-        "bg-orange-50 text-orange-600",
-
-
-        Interview:
-        "bg-purple-50 text-purple-600",
-
-
-        Hired:
-        "bg-green-50 text-green-600",
-
-
-        Rejected:
-        "bg-red-50 text-red-600",
-
+        Rejected:{
+            badge:"bg-red-50 text-red-600",
+            dot:"bg-red-500"
+        }
 
     };
 
 
 
-
-
+    const current =
+        statusStyle[status]
+        ||
+        {
+            badge:"bg-gray-100 text-gray-600",
+            dot:"bg-gray-400"
+        };
 
 
 
 
     return (
 
-
-
         <div
 
-
             onClick={()=>navigate(
-
                 `/candidate/${candidate.candidate_id}`
-
             )}
 
-
             className="
-
             bg-white
-
             border
-
             border-gray-200
-
-            rounded-xl
-
+            rounded-2xl
             p-4
-
             cursor-pointer
-
             hover:shadow-md
-
             transition
-
+            min-h-[260px]
             "
 
         >
 
 
-
-
-
-
-
             {/* HEADER */}
-
-
 
             <div
 
-
                 className="
-
                 flex
-
                 justify-between
-
-                gap-2
-
+                items-start
+                gap-3
                 "
 
             >
 
+                <div className="
+                    flex
+                    gap-3
+                    min-w-0
+                ">
 
 
-                <div className="min-w-0">
-
-
-                    <h3
-
+                    <div
 
                         className="
-
-                        text-sm
-
+                        w-10
+                        h-10
+                        rounded-xl
+                        bg-blue-600
+                        text-white
+                        flex
+                        items-center
+                        justify-center
                         font-semibold
-
-                        text-gray-900
-
-                        truncate
-
                         "
 
                     >
 
                         {
-                            candidate.full_name ||
-                            "Unknown Candidate"
+                            candidate.full_name
+                            ?.charAt(0)
+                            ||
+                            "?"
                         }
 
 
-                    </h3>
+                    </div>
 
 
 
+                    <div className="min-w-0">
 
 
-                    <p
+                        <h3
+
+                            className="
+                            text-sm
+                            font-semibold
+                            text-gray-900
+                            truncate
+                            "
+
+                        >
+
+                            {
+                                candidate.full_name
+                                ||
+                                "Unknown Candidate"
+                            }
+
+                        </h3>
 
 
-                        className="
+                        <p
 
-                        text-xs
+                            className="
+                            text-xs
+                            text-gray-500
+                            mt-1
+                            truncate
+                            "
 
-                        text-gray-500
+                        >
 
-                        mt-1
+                            {
+                                candidate.applied_position
+                                ||
+                                "-"
+                            }
 
-                        truncate
-
-                        "
-
-                    >
-
-                        {
-                            candidate.applied_position ||
-                            "-"
-                        }
+                        </p>
 
 
-                    </p>
-
+                    </div>
 
 
                 </div>
-
-
-
-
 
 
 
                 <span
 
-
                     className={`
-
+                    flex
+                    items-center
+                    gap-1.5
                     text-[11px]
-
-                    px-2
-
+                    px-2.5
                     py-1
-
                     rounded-full
-
                     font-medium
-
-                    ${
-
-                    statusStyle[status]
-
-                    ||
-
-                    "bg-gray-100 text-gray-600"
-
-                    }
-
+                    ${current.badge}
                     `}
-
 
                 >
 
+                    <span
+
+                        className={`
+                        w-1.5
+                        h-1.5
+                        rounded-full
+                        ${current.dot}
+                        `}
+
+                    />
+
                     {status}
 
-
                 </span>
-
 
 
             </div>
@@ -274,104 +237,68 @@ function PipelineCandidateCard({
 
 
 
-
-
-
-
-
-            {/* DETAIL */}
-
-
+            {/* INFO */}
 
             <div
 
-
                 className="
-
-                mt-4
-
-                space-y-2
-
+                mt-5
+                space-y-3
                 text-xs
-
                 "
 
             >
 
 
-
-                <div
-
-                    className="
-
+                <div className="
                     flex
+                    items-center
+                    gap-2
+                ">
 
-                    justify-between
-
-                    "
-
-                >
-
-                    <span className="text-gray-400">
-
-                        Experience
-
+                    <span>
+                        📍
                     </span>
 
-
-                    <span className="font-medium text-gray-700">
+                    <span className="text-gray-600 truncate">
 
                         {
-                            candidate.experience_total ?? 0
-                        } yrs
-
-                    </span>
-
-
-                </div>
-
-
-
-
-
-
-                <div
-
-                    className="
-
-                    flex
-
-                    justify-between
-
-                    "
-
-                >
-
-                    <span className="text-gray-400">
-
-                        Location
-
-                    </span>
-
-
-                    <span className="text-gray-700 truncate max-w-[120px]">
-
-                        {
-                            candidate.location || "-"
+                            candidate.location
+                            ||
+                            "Location not provided"
                         }
 
                     </span>
 
-
                 </div>
 
 
 
+                <div className="
+                    flex
+                    items-center
+                    gap-2
+                ">
+
+                    <span>
+                        💼
+                    </span>
+
+                    <span className="text-gray-600">
+
+                        {
+                            candidate.experience_total
+                            ??
+                            0
+                        }
+                        {" "}years experience
+
+                    </span>
+
+                </div>
+
+
             </div>
-
-
-
-
 
 
 
@@ -379,73 +306,46 @@ function PipelineCandidateCard({
 
             {/* SKILLS */}
 
-
-
             {
+                skills.length > 0 &&
 
-            skills.length > 0 &&
+                <div
 
+                    className="
+                    flex
+                    flex-wrap
+                    gap-1.5
+                    mt-5
+                    "
 
-            <div
+                >
 
+                    {
+                        skills.slice(0,3).map(skill=>(
 
-                className="
+                            <span
 
-                flex
+                                key={skill}
 
-                flex-wrap
+                                className="
+                                bg-gray-100
+                                text-gray-600
+                                text-[11px]
+                                px-2
+                                py-1
+                                rounded-full
+                                "
 
-                gap-1.5
+                            >
 
-                mt-4
+                                {skill}
 
-                "
+                            </span>
 
-            >
+                        ))
+                    }
 
-
-                {
-
-                skills.slice(0,3).map(skill=>(
-
-
-                    <span
-
-
-                        key={skill}
-
-
-                        className="
-
-                        bg-gray-100
-
-                        text-gray-600
-
-                        text-[11px]
-
-                        px-2
-
-                        py-1
-
-                        rounded-full
-
-                        "
-
-                    >
-
-                        {skill}
-
-
-                    </span>
-
-
-                ))
-
-                }
-
-
-            </div>
-
+                </div>
 
             }
 
@@ -453,172 +353,40 @@ function PipelineCandidateCard({
 
 
 
-
-
-
-
-            {/* AI MATCH */}
-
-
-
-            <div className="mt-4">
-
-
-                <div
-
-
-                    className="
-
-                    flex
-
-                    justify-between
-
-                    text-[11px]
-
-                    mb-1
-
-                    "
-
-                >
-
-
-                    <span className="text-gray-400">
-
-                        AI Match
-
-                    </span>
-
-
-
-                    <span className="text-blue-600 font-medium">
-
-                        {confidence}%
-
-                    </span>
-
-
-                </div>
-
-
-
-
-
-
-                <div
-
-
-                    className="
-
-                    h-1.5
-
-                    bg-gray-100
-
-                    rounded-full
-
-                    overflow-hidden
-
-                    "
-
-                >
-
-
-
-                    <div
-
-
-                        className="
-
-                        h-full
-
-                        bg-blue-500
-
-                        rounded-full
-
-                        "
-
-                        style={{
-
-                            width:`${confidence}%`
-
-                        }}
-
-                    />
-
-
-
-                </div>
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-
             {/* FOOTER */}
-
-
 
             <div
 
-
                 className="
-
-                mt-4
-
+                mt-6
                 pt-3
-
                 border-t
-
                 border-gray-100
-
                 flex
-
                 justify-between
-
                 items-center
-
                 "
 
             >
 
-
-
                 <span
 
-
                     className="
-
-                    text-[11px]
-
+                    text-xs
                     text-gray-400
-
                     "
 
                 >
 
-                    View Profile
+                    View profile
 
                 </span>
 
 
-
-
-
                 <span
 
-
                     className="
-
                     text-blue-600
-
-                    text-sm
-
                     "
 
                 >
@@ -628,25 +396,15 @@ function PipelineCandidateCard({
                 </span>
 
 
-
             </div>
-
-
-
-
 
 
 
         </div>
 
-
     );
 
-
 }
-
-
-
 
 
 export default PipelineCandidateCard;
