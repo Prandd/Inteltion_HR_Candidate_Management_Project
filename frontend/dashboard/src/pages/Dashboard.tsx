@@ -42,6 +42,10 @@ function Dashboard(){
             color:"blue" as const
         },
         {
+            name:"CV passed",
+            color:"cyan" as const
+        },
+        {
             name:"Assessment",
             color:"orange" as const
         },
@@ -723,7 +727,7 @@ function Dashboard(){
             grid
             grid-cols-1
             md:grid-cols-2
-            xl:grid-cols-5
+            xl:grid-cols-6
             gap-5
         ">
 
@@ -745,18 +749,29 @@ function Dashboard(){
                         color={color}
                     >
 
-                        {
-                            getCandidates(name).map(candidate=>(
+                        <div
+                            className="
+                            space-y-3
+                            min-w-0
+                            w-full
+                            "
+                        >
 
-                                <PipelineCandidateCard
-                                    key={
-                                        candidate.candidate_id
-                                    }
-                                    candidate={candidate}
-                                />
+                            {
+                                getCandidates(name).map(candidate=>(
 
-                            ))
-                        }
+                                    <PipelineCandidateCard
+                                        key={
+                                            candidate.candidate_id
+                                        }
+                                        candidate={candidate}
+                                    />
+
+                                ))
+                            }
+
+                        </div>
+
 
                     </PipelineColumn>
 

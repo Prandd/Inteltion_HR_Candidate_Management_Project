@@ -44,6 +44,11 @@ function PipelineCandidateCard({
             dot:"bg-blue-500"
         },
 
+        "CV passed":{
+            badge:"bg-cyan-50 text-cyan-600",
+            dot:"bg-cyan-500"
+        },
+
         Assessment:{
             badge:"bg-orange-50 text-orange-600",
             dot:"bg-orange-500"
@@ -59,7 +64,7 @@ function PipelineCandidateCard({
             dot:"bg-green-500"
         },
 
-        Rejected:{
+        "CV rejected":{
             badge:"bg-red-50 text-red-600",
             dot:"bg-red-500"
         }

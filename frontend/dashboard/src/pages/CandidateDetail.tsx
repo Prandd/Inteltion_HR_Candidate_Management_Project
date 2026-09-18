@@ -92,10 +92,22 @@ function CandidateDetail(){
         try{
 
 
-            const res =
+           const res =
                 await api.get(
                     `/candidates/${id}`
                 );
+
+
+            console.log(
+                "DETAIL RESPONSE:",
+                res.data.data
+            );
+
+
+            console.log(
+                "RESUME URL:",
+                res.data.data.resume_url
+            );
 
 
             setCandidate(

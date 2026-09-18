@@ -13,6 +13,8 @@ interface Props {
     |
     "blue"
     |
+    "cyan"
+    |
     "orange"
     |
     "purple"
@@ -46,6 +48,12 @@ function PipelineColumn({
             dot:"bg-blue-500",
             header:"bg-blue-50",
             text:"text-blue-600"
+        },
+
+        cyan:{
+            dot:"bg-cyan-500",
+            header:"bg-cyan-50",
+            text:"text-cyan-600"
         },
 
         orange:{

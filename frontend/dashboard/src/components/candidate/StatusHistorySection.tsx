@@ -22,10 +22,7 @@ function StatusHistorySection({
 
 
 
-    const history =
-        candidate.status_history ?? [];
-
-
+    const history = candidate.status_history ?? [];
 
 
     return (
@@ -465,8 +462,10 @@ function StatusHistorySection({
 
 
                                         {
-
-
+                                            item.status === "CV rejected"
+                                            &&
+                                            item.previous_status
+                                            &&
                                             <div
 
                                                 className="
@@ -491,10 +490,7 @@ function StatusHistorySection({
                                                     {item.previous_status}
                                                 </b>
 
-
                                             </div>
-
-
                                         }
 
 

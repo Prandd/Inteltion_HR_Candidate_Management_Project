@@ -326,6 +326,13 @@ def get_candidate(
     
     data = _to_out(row)
 
+
+    data["resume_filename"] = row.resume_filename
+
+
+    data["resume_url"] = row.resume_url
+
+
     data["status_history"] = [
 
         {
@@ -605,6 +612,50 @@ def update_candidate(
 
         "error": None
 
+    }
+    
+@router.put(
+    "/candidates/comments/{comment_id}"
+)
+def update_comment(
+
+    comment_id:int,
+
+    payload:dict,
+
+    db:Session = Depends(get_db)
+
+):
+
+    comment = (
+        db.query(CandidateComment)
+        .filter(
+            CandidateComment.id == comment_id
+        )
+        .first()
+    )
+
+
+    if not comment:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Comment not found"
+        )
+
+
+    comment.comment = payload["comment"]
+
+    comment.author = "HR Admin"
+
+
+    db.commit()
+
+    db.refresh(comment)
+
+
+    return {
+        "data":comment
     }
     
 # ==================================================
@@ -1134,4 +1185,41 @@ def delete_candidate(
 
         "error": None
 
+    }
+    
+@router.delete(
+    "/candidates/comments/{comment_id}"
+)
+def delete_comment(
+
+    comment_id:int,
+
+    db:Session = Depends(get_db)
+
+):
+
+    comment = (
+        db.query(CandidateComment)
+        .filter(
+            CandidateComment.id == comment_id
+        )
+        .first()
+    )
+
+
+    if not comment:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Comment not found"
+        )
+
+
+    db.delete(comment)
+
+    db.commit()
+
+
+    return {
+        "message":"Comment deleted"
     }

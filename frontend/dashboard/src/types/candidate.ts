@@ -148,15 +148,6 @@ export interface Evaluation {
 }
 
 
-export interface CandidateComment {
-
-    hr_comment?:string;
-
-    line_manager_comment?:string;
-
-}
-
-
 export interface StatusHistory {
 
 
@@ -183,5 +174,7 @@ export interface CandidateComment {
     comment:string;
 
     created_at:string;
+
+     updated_at?:string;
 
 }

@@ -62,10 +62,6 @@ function StatusDropdown({
 
         "New",
 
-        "Review",
-
-        "Needs information",
-
         "CV passed",
 
         "Assessment",
@@ -74,9 +70,7 @@ function StatusDropdown({
 
         "Hired",
 
-        "CV rejected",
-
-        "Archived"
+        "CV rejected"
 
     ];
 
@@ -149,20 +143,6 @@ function StatusDropdown({
 
 
 
-            case "Needs information":
-
-                return {
-
-                    badge:
-                    "bg-gray-100 text-gray-600",
-
-                    dot:
-                    "bg-gray-400"
-
-                };
-
-
-
             case "CV passed":
 
                 return {
@@ -175,19 +155,6 @@ function StatusDropdown({
 
                 };
 
-
-
-            case "Archived":
-
-                return {
-
-                    badge:
-                    "bg-gray-100 text-gray-500",
-
-                    dot:
-                    "bg-gray-400"
-
-                };
 
 
 

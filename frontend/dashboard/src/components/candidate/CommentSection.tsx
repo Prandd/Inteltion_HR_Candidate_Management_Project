@@ -25,6 +25,8 @@ interface CommentType {
 
     created_at:string;
 
+    updated_at?:string;
+
 }
 
 
@@ -82,6 +84,16 @@ function CommentSection({
         loading,
         setLoading
     ] = useState(false);
+
+    const [
+        editingId,
+        setEditingId
+    ] = useState<number|null>(null);
+
+    const [
+        editText,
+        setEditText
+    ] = useState("");
 
 
 
@@ -221,9 +233,42 @@ function CommentSection({
 
     }
 
+    async function updateComment(id:number){
+
+        await api.put(
+            `/candidates/comments/${id}`,
+            {
+                comment:editText
+            }
+        );
 
 
+        setEditingId(null);
 
+        setEditText("");
+
+        fetchComments();
+
+    }
+
+    async function deleteComment(id:number){
+
+        if(
+            !confirm(
+                "Delete this comment?"
+            )
+        )
+            return;
+
+
+        await api.delete(
+            `/candidates/comments/${id}`
+        );
+
+
+        fetchComments();
+
+    }
 
 
 
@@ -484,6 +529,37 @@ function CommentSection({
                                             }
                                         )
                                     }
+                                    {
+                                        comment.updated_at
+                                        &&
+                                        <p
+
+                                            className="
+                                            text-xs
+                                            text-gray-400
+                                            mt-1
+                                            "
+
+                                        >
+
+                                            Edited by {comment.author} at{" "}
+
+                                            {
+                                                new Date(
+                                                    comment.updated_at
+                                                )
+                                                .toLocaleString(
+                                                    "en-GB",
+                                                    {
+                                                        dateStyle:"medium",
+                                                        timeStyle:"short"
+                                                    }
+                                                )
+                                            }
+
+
+                                        </p>
+                                    }
 
 
                                 </p>
@@ -496,24 +572,186 @@ function CommentSection({
 
 
 
-                            <p
+                            {
+                                editingId === comment.id
 
-                                className="
-                                mt-2
-                                text-sm
-                                text-gray-600
-                                leading-6
-                                "
+                                ?
 
-                            >
+                                <div className="mt-2">
 
-                                {
-                                    comment.comment
-                                }
+                                    <textarea
+
+                                        value={editText}
+
+                                        onChange={
+                                            e =>
+                                            setEditText(
+                                                e.target.value
+                                            )
+                                        }
+
+                                        className="
+                                        w-full
+                                        border
+                                        rounded-lg
+                                        p-2
+                                        text-sm
+                                        "
+
+                                    />
 
 
-                            </p>
+                                    <div
 
+                                        className="
+                                        flex
+                                        gap-2
+                                        mt-2
+                                        "
+
+                                    >
+
+                                        <button
+
+                                            onClick={() =>
+                                                updateComment(
+                                                    comment.id
+                                                )
+                                            }
+
+                                            className="
+                                            bg-blue-600
+                                            text-white
+                                            text-xs
+                                            px-3
+                                            py-1
+                                            rounded
+                                            "
+
+                                        >
+
+                                            Save
+
+                                        </button>
+
+
+
+                                        <button
+
+                                            onClick={() => {
+
+                                                setEditingId(null);
+
+                                                setEditText("");
+
+                                            }}
+
+                                            className="
+                                            border
+                                            text-xs
+                                            px-3
+                                            py-1
+                                            rounded
+                                            "
+
+                                        >
+
+                                            Cancel
+
+                                        </button>
+
+
+                                    </div>
+
+
+                                </div>
+
+
+                                :
+
+
+                                <div>
+
+                                    <p
+
+                                        className="
+                                        mt-2
+                                        text-sm
+                                        text-gray-600
+                                        leading-6
+                                        "
+
+                                    >
+
+                                        {comment.comment}
+
+                                    </p>
+
+
+
+                                    <div
+
+                                        className="
+                                        flex
+                                        gap-3
+                                        mt-2
+                                        "
+
+                                    >
+
+                                        <button
+
+                                            onClick={() => {
+
+                                                setEditingId(
+                                                    comment.id
+                                                );
+
+                                                setEditText(
+                                                    comment.comment
+                                                );
+
+                                            }}
+
+                                            className="
+                                            text-xs
+                                            text-blue-600
+                                            "
+
+                                        >
+
+                                            Edit
+
+                                        </button>
+
+
+
+                                        <button
+
+                                            onClick={() =>
+                                                deleteComment(
+                                                    comment.id
+                                                )
+                                            }
+
+                                            className="
+                                            text-xs
+                                            text-red-500
+                                            "
+
+                                        >
+
+                                            Delete
+
+                                        </button>
+
+
+                                    </div>
+
+
+                                </div>
+
+                            }
 
 
                         </div>
