@@ -18,12 +18,24 @@ class Settings(BaseSettings):
     api_base_url: str = "http://localhost:8000"
     max_upload_mb: int = 10
 
-    # ---- Auth (single Admin/HR account) ----
-    auth_username: str = "admin"
-    auth_password: str = "password123"
+    # ---- Auth (F2: DB-backed HR accounts) ----
+    # The first admin is bootstrapped from these two, and ONLY when the
+    # hr_accounts table is empty. Everyone else is created through
+    # POST /api/hr-accounts. Change SEED_ADMIN_PASSWORD before any real use -
+    # the app logs a warning on startup while it is still the default.
+    seed_admin_username: str = "admin"
+    seed_admin_password: str = "password123"
+    seed_admin_email: str = "admin@inteltion.local"
+    seed_admin_full_name: str = "Seed Admin"
+
     jwt_secret: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480  # 8h
+
+    # ---- Login hardening (F2) ----
+    min_password_length: int = 8
+    login_max_failures: int = 5  # per username...
+    login_failure_window_minutes: int = 15  # ...within this window -> 429
 
     # ---- File storage. Empty connection string (the default) -> local disk,
     # zero setup. Set AZURE_STORAGE_CONNECTION_STRING to switch to Azure Blob -
@@ -31,6 +43,16 @@ class Settings(BaseSettings):
     azure_storage_connection_string: str = ""
     azure_storage_container_name: str = "resumes"
     resume_sas_expiry_minutes: int = 60  # how long a resolved resume link stays valid
+
+    # F1 guardrail: the storage account we EXPECT the connection string to point
+    # at. When set, storage.py refuses to start if the connection string names a
+    # different account - that is what stops a stray .env writing our resumes
+    # into Inteltion's company storage account (or vice versa).
+    azure_storage_account_name: str = ""
+    # Must be explicitly true before the app will accept the company's account.
+    allow_company_storage: bool = False
+    # The company account, used only to give the mismatch error a useful message.
+    company_storage_account_name: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

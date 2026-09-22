@@ -11,10 +11,21 @@ Day 6 integration = change ONE import in app/routers/candidates.py:
     from llm_service.extract import extract_candidate    # <- add the real one
 
 Nothing else changes as long as the returned dict still matches the schema.
-This mock ignores the file bytes and returns varied, schema-valid data.
+
+This mock is a PURE FUNCTION of the file bytes: same bytes in, same candidate
+out, every time, in every process. Nothing here calls an unseeded random number
+generator. `random.Random(seed)` is used only as a deterministic table lookup -
+a way to pick "which name, which skills" from the fixture lists - and `seed` is
+the SHA-256 of the file.
+
+That matters beyond tidiness. F4 decides whether a CV belongs to an existing
+candidate by comparing the extracted email, so an extractor that answers
+differently for the same file would file one person under two records - exactly
+the bug F4 exists to fix.
 """
 from __future__ import annotations
 
+import hashlib
 import random
 
 _FIRST = ["Somchai", "Ariya", "Nattapong", "Kanya", "Thanakorn",
@@ -37,9 +48,6 @@ _UNIS = ["Chulalongkorn University", "Chiang Mai University",
          "Kasetsart University", "Thammasat University", "KMUTT"]
 _EDU_FIELDS = ["Computer Engineering", "Computer Science",
                "Information Technology", "Data Science", "Software Engineering"]
-
-_call_counter = random.Random()
-
 
 def _mock_candidate(seed: int) -> dict:
     rnd = random.Random(seed)
@@ -73,7 +81,13 @@ def _mock_candidate(seed: int) -> dict:
     has_salary = rnd.random() > 0.35
     return {
         "full_name": f"{first} {last}",
-        "email": f"{first.lower()}.{last.lower()}@example.com",
+        # Taken straight off the seed, not drawn from `rnd`: the email is the
+        # identity key F4 matches on, so it should be readable as a plain
+        # function of the file rather than as one more draw from a generator.
+        # The suffix also widens the name space from 80 combinations (10 first
+        # names x 8 last names) to 8000, so two unrelated mock CVs are unlikely
+        # to collide on email and get merged into a single candidate.
+        "email": f"{first.lower()}.{last.lower()}{seed % 100:02d}@example.com",
         "phone": f"08{rnd.randint(10_000_000, 99_999_999)}",
         "location": rnd.choice(
             ["Bangkok, Thailand", "Chiang Mai, Thailand", "Remote", "Nonthaburi, Thailand"]
@@ -105,13 +119,20 @@ def _mock_candidate(seed: int) -> dict:
 
 
 def extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict:
-    """Return a schema-valid candidate dict. Mock: file content is ignored.
+    """Return a schema-valid candidate dict. Mock: the file is not parsed, but
+    the output is DERIVED from its bytes.
 
     Signature matches Member 4's real llm-service function exactly
     (extractor.py: `extract_candidate(file_bytes, filename=None) -> dict`),
     so the Day 6 swap is a one-line import change. Member 4's output does
     NOT include `location` / `status` - the backend adds those (status
     defaults to "New", location stays "" until HR fills it).
+
+    The seed is the content hash, not a random number. Round 4 made this matter:
+    F4 decides "same candidate" from the extracted email, so re-uploading the
+    same CV has to yield the same person. A random seed made every re-upload
+    look like a new applicant, which is precisely the bug F4 exists to fix - and
+    it would have made the feature impossible to test or demo.
     """
-    seed = (len(file_bytes) * 2654435761 + _call_counter.randint(0, 10_000_000)) & 0xFFFFFFFF
+    seed = int.from_bytes(hashlib.sha256(file_bytes).digest()[:8], "big")
     return _mock_candidate(seed)
