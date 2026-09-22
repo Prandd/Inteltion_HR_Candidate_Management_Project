@@ -1,34 +1,16 @@
+"""The round-1..3 regression suite, kept green through round 4.
+
+Round-4 changes visible here:
+  * login is DB-backed, so the credentials come from the seeded admin account;
+  * the upload response gained `updated[]`;
+  * resume URLs resolve through resume_versions.
+"""
 import io
 
-import pytest
-from fastapi.testclient import TestClient
+from conftest import ADMIN_USERNAME, pdf_bytes, upload
 
-from app.config import settings
 from app.database import SessionLocal
-from app.main import app
 from app.models_db import Candidate
-
-
-@pytest.fixture(scope="module")
-def client():
-    # `with` runs the lifespan (table create + seed).
-    with TestClient(app) as c:
-        yield c
-
-
-@pytest.fixture(scope="module")
-def auth(client):
-    r = client.post(
-        "/api/auth/login",
-        json={"username": settings.auth_username, "password": settings.auth_password},
-    )
-    assert r.status_code == 200, r.text
-    token = r.json()["data"]["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-
-def _pdf(name="resume.pdf"):
-    return {"files": (name, io.BytesIO(b"%PDF-1.4 fake bytes"), "application/pdf")}
 
 
 # ---------------- auth ----------------
@@ -40,6 +22,14 @@ def test_health_is_open(client):
     assert r.json()["data"]["status"] == "ok"
 
 
+def test_health_reports_the_active_storage_backend(client):
+    """F1 - the team confirms which account they are hitting without reading
+    anyone's .env. Never the key."""
+    storage = client.get("/health").json()["data"]["storage"]
+    assert storage["backend"] in {"local_disk", "azure_blob"}
+    assert "key" not in str(storage).lower()
+
+
 def test_candidates_requires_auth(client):
     r = client.get("/api/candidates")
     assert r.status_code == 401
@@ -48,7 +38,9 @@ def test_candidates_requires_auth(client):
 
 
 def test_login_rejects_bad_credentials(client):
-    r = client.post("/api/auth/login", json={"username": "admin", "password": "nope"})
+    r = client.post(
+        "/api/auth/login", json={"username": ADMIN_USERNAME, "password": "nope"}
+    )
     assert r.status_code == 401
 
 
@@ -98,15 +90,17 @@ def test_get_unknown_returns_404_envelope(client, auth):
     assert r.json()["data"] is None
 
 
-def test_resume_url_resolves_after_upload(client, auth):
-    up = client.post("/api/candidates/upload", headers=auth, files=_pdf("cv.pdf"))
+def test_resume_url_resolves_after_upload(client, auth, fixed_extraction):
+    fixed_extraction("resume-url-case", email="resume.url@smoke.test")
+    up = upload(client, auth, ("cv.pdf", "resume-url-case"))
     cid = up.json()["data"]["created"][0]["candidate_id"]
 
     r = client.get(f"/api/candidates/{cid}/resume-url", headers=auth)
     assert r.status_code == 200
     body = r.json()["data"]
     assert body["filename"] == "cv.pdf"
-    assert body["resume_url"]  # local disk -> http://.../files/<id>/cv.pdf
+    assert body["resume_url"]  # local disk -> http://.../files/<id>/v1/cv.pdf
+    assert body["version_no"] == 1
 
 
 def test_upload_rejects_non_pdf_docx(client, auth):
@@ -118,18 +112,24 @@ def test_upload_rejects_non_pdf_docx(client, auth):
     assert r.status_code == 400
 
 
-def test_multi_upload_creates_running_ids(client, auth):
+def test_multi_upload_creates_running_ids(client, auth, fixed_extraction):
+    # Two distinct people - pinned, so the assertion is about id assignment and
+    # not about whether the mock happened to invent two different emails.
+    fixed_extraction("multi-a", email="multi.a@smoke.test", full_name="Multi A")
+    fixed_extraction("multi-b", email="multi.b@smoke.test", full_name="Multi B")
     r = client.post(
         "/api/candidates/upload",
         headers=auth,
         files=[
-            ("files", ("a.pdf", io.BytesIO(b"%PDF-1.4 a"), "application/pdf")),
-            ("files", ("b.docx", io.BytesIO(b"PK docx b"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")),
+            ("files", ("a.pdf", io.BytesIO(pdf_bytes("multi-a")), "application/pdf")),
+            ("files", ("b.docx", io.BytesIO(pdf_bytes("multi-b")),
+                       "application/vnd.openxmlformats-officedocument.wordprocessingml.document")),
         ],
     )
     assert r.status_code == 201, r.text
     data = r.json()["data"]
     assert data["count"] == 2
+    assert data["updated"] == [], "two different CVs are two different people"
     created = data["created"]
     ids = [c["candidate_id"] for c in created]
     assert all(len(cid) == 7 and cid.isdigit() for cid in ids)
@@ -137,10 +137,8 @@ def test_multi_upload_creates_running_ids(client, auth):
     assert all(c["upload_status"] == "Done" for c in created)
 
 
-def test_upload_then_get_then_edit_roundtrip(client, auth):
-    up = client.post("/api/candidates/upload", headers=auth, files=_pdf())
-    assert up.status_code == 201
-    candidate = up.json()["data"]["created"][0]
+def test_upload_then_get_then_edit_roundtrip(client, auth, new_candidate):
+    candidate = new_candidate("roundtrip")
     cid = candidate["candidate_id"]
     assert candidate["status"] == "New"
 
