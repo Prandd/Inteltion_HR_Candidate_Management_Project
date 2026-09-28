@@ -2,6 +2,8 @@ import type {
     CandidateDetailType
 } from "../../types/candidate";
 
+import { formatStatusLabel } from "../../utils/status";
+
 
 
 interface Props {
@@ -264,7 +266,7 @@ function StatusHistorySection({
 
                                         >
 
-                                            {item.status}
+                                            {formatStatusLabel(item.status)}
 
                                         </h3>
 

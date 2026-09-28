@@ -2,6 +2,8 @@ import {
     useNavigate
 } from "react-router-dom";
 
+import { formatStatusLabel } from "../utils/status";
+
 
 import type {
     CandidateSummary
@@ -260,7 +262,7 @@ function CandidateCard({
                     >
 
                         {
-                            candidate.status || "New"
+                            formatStatusLabel(candidate.status || "New")
                         }
 
 

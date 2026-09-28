@@ -34,21 +34,13 @@ from dotenv import load_dotenv
 # Current file:
 # llm-service/cv-parsing/llm_client.py
 #
-# .env location:
-# llm-service/.env
+# Load service-local and backend-local config first, then the repository-wide
+# .env. Existing process environment variables keep precedence.
 
 
-load_dotenv(
-
-    os.path.join(
-
-        os.path.dirname(__file__),
-
-        "../.env"
-
-    )
-
-)
+load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "../../backend/.env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env"))
 
 
 

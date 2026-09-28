@@ -73,14 +73,6 @@ function CommentSection({
 
 
     const [
-        role,
-        setRole
-    ] = useState("HR");
-
-
-
-
-    const [
         loading,
         setLoading
     ] = useState(false);
@@ -180,14 +172,9 @@ function CommentSection({
 
                     comment:text,
 
-                    role:role,
+                    role:"HR",
 
-                    author:
-                        role === "HR"
-                        ?
-                        "HR Admin"
-                        :
-                        "Line Manager"
+                    author:"HR Admin"
 
                 }
 
@@ -796,86 +783,6 @@ function CommentSection({
 
 
             <div>
-
-
-                <div
-
-                    className="
-                    flex
-                    items-center
-                    justify-between
-                    mb-3
-                    "
-
-                >
-
-
-                    <label
-
-                        className="
-                        text-sm
-                        text-gray-600
-                        "
-
-                    >
-
-                        Add feedback as
-
-                    </label>
-
-
-
-
-                    <select
-
-                        value={
-                            role
-                        }
-
-
-                        onChange={
-
-                            e=>
-
-                            setRole(
-                                e.target.value
-                            )
-
-                        }
-
-
-                        className="
-                        border
-                        rounded-lg
-                        px-3
-                        py-1.5
-                        text-sm
-                        "
-
-                    >
-
-                        <option value="HR">
-
-                            HR
-
-                        </option>
-
-
-                        <option value="Line Manager">
-
-                            Line Manager
-
-                        </option>
-
-
-                    </select>
-
-
-                </div>
-
-
-
-
 
 
                 <textarea

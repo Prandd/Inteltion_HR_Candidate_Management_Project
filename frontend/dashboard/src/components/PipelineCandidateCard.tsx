@@ -2,6 +2,8 @@ import {
     useNavigate
 } from "react-router-dom";
 
+import { formatStatusLabel } from "../utils/status";
+
 import type {
     CandidateSummary
 } from "../types/candidate";
@@ -232,7 +234,7 @@ function PipelineCandidateCard({
 
                     />
 
-                    {status}
+                    {formatStatusLabel(status)}
 
                 </span>
 

@@ -5,6 +5,8 @@ import {
 
 import api from "../api/axios";
 
+import { formatStatusLabel } from "../utils/status";
+
 
 
 interface Props {
@@ -385,7 +387,7 @@ function StatusDropdown({
 
                     :
 
-                    status
+                    formatStatusLabel(status)
 
                 }
 
@@ -544,7 +546,7 @@ function StatusDropdown({
 
 
 
-                        {item}
+                        {formatStatusLabel(item)}
 
 
                     </button>

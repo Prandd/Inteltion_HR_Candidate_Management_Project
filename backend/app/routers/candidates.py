@@ -96,6 +96,9 @@ _STATUS_SET = set(
 
 def _to_out(row: Candidate):
 
+    if row.updated_at is None:
+        row.updated_at = row.created_at or datetime.now(timezone.utc)
+
     data = (
         CandidateOut
         .model_validate(row)
@@ -112,7 +115,6 @@ def _to_out(row: Candidate):
                 "experience",
                 "education"
             ]:
-
                 data[key] = []
 
             else:

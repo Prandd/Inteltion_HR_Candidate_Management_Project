@@ -182,9 +182,9 @@ class Candidate(Base):
 
     updated_at = Column(
         DateTime,
-        nullable=True,
-        default=None,
-        onupdate=lambda: datetime.now(timezone.utc)
+        nullable=False,
+        default=_utcnow,
+        onupdate=_utcnow
     )
 
 

@@ -12,6 +12,7 @@ import api from "../api/axios";
 import PipelineStatCard from "../components/PipelineStatCard";
 import PipelineColumn from "../components/PipelineColumn";
 import PipelineCandidateCard from "../components/PipelineCandidateCard";
+import { formatStatusLabel } from "../utils/status";
 
 import type {
     CandidateSummary
@@ -34,6 +35,8 @@ function Dashboard(){
     const [sortBy,setSortBy] = useState("latest");
 
     const [view,setView] = useState<"board"|"table">("board");
+    const [tablePage,setTablePage] = useState(1);
+    const [selectedCandidateIds,setSelectedCandidateIds] = useState<Set<string>>(new Set());
 
 
     const columns = [
@@ -282,6 +285,56 @@ function Dashboard(){
 
     });
 
+    const tablePageSize = 10;
+    const tablePageCount = Math.max(1, Math.ceil(sortedCandidates.length / tablePageSize));
+    const currentTablePage = Math.min(tablePage, tablePageCount);
+    const pageCandidates = sortedCandidates.slice(
+        (currentTablePage - 1) * tablePageSize,
+        currentTablePage * tablePageSize
+    );
+
+    function toggleCandidateSelection(candidateId:string){
+        setSelectedCandidateIds(current=>{
+            const next = new Set(current);
+            if(next.has(candidateId)) next.delete(candidateId);
+            else next.add(candidateId);
+            return next;
+        });
+    }
+
+    function togglePageSelection(){
+        setSelectedCandidateIds(current=>{
+            const next = new Set(current);
+            const allSelected = pageCandidates.length > 0
+                && pageCandidates.every(candidate=>next.has(candidate.candidate_id));
+            pageCandidates.forEach(candidate=>{
+                if(allSelected) next.delete(candidate.candidate_id);
+                else next.add(candidate.candidate_id);
+            });
+            return next;
+        });
+    }
+
+    function statusBadgeClass(status:string){
+        if(status === "Hired") return "bg-emerald-50 text-emerald-700";
+        if(status === "Interview") return "bg-violet-50 text-violet-700";
+        if(status === "CV rejected" || status === "Rejected") return "bg-rose-50 text-rose-700";
+        if(status === "Assessment") return "bg-amber-50 text-amber-700";
+        if(status === "CV passed") return "bg-cyan-50 text-cyan-700";
+        return "bg-blue-50 text-blue-700";
+    }
+
+    function formatSubmittedDate(value?:string){
+        if(!value) return "-";
+        const date = new Date(value);
+        if(Number.isNaN(date.getTime())) return "-";
+        return new Intl.DateTimeFormat("en",{
+            month:"short",
+            day:"numeric",
+            year:"numeric"
+        }).format(date);
+    }
+
     const hasCandidates =
     sortedCandidates.length > 0;
 
@@ -454,7 +507,7 @@ function Dashboard(){
                 />
 
                 <PipelineStatCard
-                    title="Failed"
+                    title="Reject"
                     value={getCandidates("Rejected").length}
                     color="red"
                     icon="×"
@@ -672,16 +725,13 @@ function Dashboard(){
                             onClick={()=>
                                 setView("board")
                             }
-                            className="
-                                h-10
-                                px-5
-                                bg-blue-600
-                                hover:bg-blue-700
-                                text-white
-                                rounded-lg
-                                text-sm
-                                font-medium
-                            "
+                            aria-pressed={view === "board"}
+                            className={`
+                                h-10 px-5 rounded-lg text-sm font-medium transition-colors
+                                ${view === "board"
+                                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"}
+                            `}
                         >
                             Board
                         </button>
@@ -691,16 +741,13 @@ function Dashboard(){
                             onClick={()=>
                                 setView("table")
                             }
-                            className="
-                                h-10
-                                px-5
-                                bg-white
-                                border
-                                border-gray-200
-                                rounded-lg
-                                text-sm
-                                font-medium
-                            "
+                            aria-pressed={view === "table"}
+                            className={`
+                                h-10 px-5 rounded-lg text-sm font-medium transition-colors
+                                ${view === "table"
+                                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"}
+                            `}
                         >
                             Table
                         </button>
@@ -736,13 +783,7 @@ function Dashboard(){
 
                     <PipelineColumn
                         key={name}
-                        name={
-                            name === "CV rejected"
-                            ?
-                            "Failed / Rejected"
-                            :
-                            name
-                        }
+                        name={formatStatusLabel(name)}
                         count={
                             getCandidates(name).length
                         }
@@ -819,157 +860,150 @@ function Dashboard(){
 
                     <div className="overflow-x-auto">
 
-                    <table className="
-                        w-full
-                        text-sm
-                    ">
-
-                        <thead className="
-                            bg-gray-50
-                        ">
-
-                            <tr>
-
-                                <th className="
-                                    text-left
-                                    px-5
-                                    py-3
-                                    text-gray-500
-                                ">
-                                    Candidate
+                    <table className="w-full min-w-[980px] text-sm">
+                        <thead className="border-b border-gray-200 bg-gray-50/80">
+                            <tr className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                <th className="w-12 px-4 py-3 text-left">
+                                    <input
+                                        type="checkbox"
+                                        aria-label="Select candidates on this page"
+                                        checked={pageCandidates.length > 0 && pageCandidates.every(candidate=>selectedCandidateIds.has(candidate.candidate_id))}
+                                        onChange={togglePageSelection}
+                                        className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                                    />
                                 </th>
-
-
-                                <th className="
-                                    text-left
-                                    px-5
-                                    py-3
-                                    text-gray-500
-                                ">
-                                    Position
-                                </th>
-
-
-                                <th className="
-                                    text-left
-                                    px-5
-                                    py-3
-                                    text-gray-500
-                                ">
-                                    Experience
-                                </th>
-
-
-                                <th className="
-                                    text-left
-                                    px-5
-                                    py-3
-                                    text-gray-500
-                                ">
-                                    Status
-                                </th>
-
+                                <th className="px-3 py-3 text-left">Candidate</th>
+                                <th className="px-3 py-3 text-left">Position</th>
+                                <th className="px-3 py-3 text-left">Experience</th>
+                                <th className="px-3 py-3 text-left">SQL test</th>
+                                <th className="px-3 py-3 text-left">Stage &amp; status</th>
+                                <th className="px-3 py-3 text-left">Submitted</th>
+                                <th className="px-4 py-3 text-right">Actions</th>
                             </tr>
-
                         </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {pageCandidates.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="px-6 py-14 text-center text-sm text-gray-400">
+                                        No candidates found
+                                    </td>
+                                </tr>
+                            ) : pageCandidates.map(candidate=>{
+                                const initials = (candidate.full_name || "?")
+                                    .split(/\s+/)
+                                    .filter(Boolean)
+                                    .slice(0,2)
+                                    .map(part=>part[0])
+                                    .join("")
+                                    .toUpperCase();
+                                const status = candidate.status || "New";
 
-
-
-
-                        <tbody>
-
-                            {
-                                sortedCandidates.map(candidate=>(
-
+                                return (
                                     <tr
-                                        key={
-                                            candidate.candidate_id
-                                        }
-                                        className="
-                                            border-t
-                                            hover:bg-gray-50
-                                            cursor-pointer
-                                        "
-                                        onClick={()=>navigate(
-                                            `/candidate/${candidate.candidate_id}`
-                                        )}
+                                        key={candidate.candidate_id}
+                                        className="group transition-colors hover:bg-blue-50/30"
                                     >
-
-                                        <td className="
-                                            px-5
-                                            py-4
-                                        ">
-
-                                            <p className="
-                                                font-medium
-                                                text-gray-900
-                                            ">
-                                                {
-                                                    candidate.full_name
-                                                }
-                                            </p>
-
-                                            <p className="
-                                                text-xs
-                                                text-gray-400
-                                            ">
-                                                {
-                                                    candidate.email
-                                                }
-                                            </p>
-
+                                        <td className="px-4 py-3.5">
+                                            <input
+                                                type="checkbox"
+                                                aria-label={`Select ${candidate.full_name || "candidate"}`}
+                                                checked={selectedCandidateIds.has(candidate.candidate_id)}
+                                                onChange={()=>toggleCandidateSelection(candidate.candidate_id)}
+                                                className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                                            />
                                         </td>
-
-
-
-                                        <td className="
-                                            px-5
-                                            py-4
-                                        ">
-                                            {
-                                                candidate.applied_position
-                                                ||
-                                                "-"
-                                            }
+                                        <td className="px-3 py-3.5">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
+                                                    {initials || "?"}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-semibold text-gray-800">
+                                                        {candidate.full_name || "Unknown Candidate"}
+                                                    </p>
+                                                    <p className="mt-0.5 truncate text-xs text-gray-400">
+                                                        {candidate.email || "No email provided"}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </td>
-
-
-
-                                        <td className="
-                                            px-5
-                                            py-4
-                                        ">
-                                            {
-                                                candidate.experience_total
-                                                ||
-                                                0
-                                            }
-                                            {" "}years
+                                        <td className="px-3 py-3.5">
+                                            <span className="inline-flex max-w-40 truncate rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                                                {candidate.applied_position || "Unassigned"}
+                                            </span>
                                         </td>
-
-
-
-                                        <td className="
-                                            px-5
-                                            py-4
-                                        ">
-                                            {
-                                                candidate.status
-                                                ||
-                                                "New"
-                                            }
+                                        <td className="whitespace-nowrap px-3 py-3.5 text-sm text-gray-600">
+                                            {candidate.experience_total ?? 0} yrs
                                         </td>
-
-
+                                        <td className="px-3 py-3.5">
+                                            {candidate.sql_test_score != null ? (
+                                                <span className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${candidate.sql_test_score >= 80 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                                    {candidate.sql_test_score}%
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">-</span>
+                                            )}
+                                        </td>
+                                        <td className="px-3 py-3.5">
+                                            <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${statusBadgeClass(status)}`}>
+                                                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                                {formatStatusLabel(status)}
+                                            </span>
+                                        </td>
+                                        <td className="whitespace-nowrap px-3 py-3.5 text-xs text-gray-500">
+                                            {formatSubmittedDate(candidate.created_at)}
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right">
+                                            <button
+                                                type="button"
+                                                onClick={()=>navigate(`/candidate/${candidate.candidate_id}`)}
+                                                className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-50"
+                                            >
+                                                View profile
+                                                <span aria-hidden="true">→</span>
+                                            </button>
+                                        </td>
                                     </tr>
-
-                                ))
-                            }
-
+                                );
+                            })}
                         </tbody>
-
-
                     </table>
+
+                    <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-gray-500">
+                            Showing {sortedCandidates.length === 0 ? 0 : (currentTablePage - 1) * tablePageSize + 1} to {Math.min(currentTablePage * tablePageSize, sortedCandidates.length)} of {sortedCandidates.length} candidates
+                            {selectedCandidateIds.size > 0 && ` · ${selectedCandidateIds.size} selected`}
+                        </p>
+                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                            <button
+                                type="button"
+                                disabled={currentTablePage === 1}
+                                onClick={()=>setTablePage(page=>Math.max(1, page - 1))}
+                                className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Previous
+                            </button>
+                            {Array.from({length:tablePageCount},(_,index)=>index + 1).map(page=>(
+                                <button
+                                    key={page}
+                                    type="button"
+                                    aria-current={currentTablePage === page ? "page" : undefined}
+                                    onClick={()=>setTablePage(page)}
+                                    className={`h-8 min-w-8 rounded-md px-2 text-xs font-medium ${currentTablePage === page ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+                            <button
+                                type="button"
+                                disabled={currentTablePage === tablePageCount}
+                                onClick={()=>setTablePage(page=>Math.min(tablePageCount, page + 1))}
+                                className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
 
                      </div>
                 </div>

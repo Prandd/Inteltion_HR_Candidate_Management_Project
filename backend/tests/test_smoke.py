@@ -45,6 +45,7 @@ def test_upload_then_get_then_edit_roundtrip():
     candidate = up.json()["data"]
     cid = candidate["candidate_id"]
     assert candidate["status"] == "New"
+    assert candidate["updated_at"] is not None
 
     got = client.get(f"/api/candidates/{cid}")
     assert got.status_code == 200

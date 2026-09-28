@@ -2,6 +2,8 @@ import {
     useNavigate
 } from "react-router-dom";
 
+import { formatStatusLabel } from "../utils/status";
+
 
 interface DuplicateCandidate {
 
@@ -247,7 +249,7 @@ function DuplicateCandidateModal({
                         label="Current Status"
 
                         value={
-                            candidate.status || "-"
+                            formatStatusLabel(candidate.status || "-")
                         }
 
                     />

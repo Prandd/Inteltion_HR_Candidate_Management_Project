@@ -30,6 +30,8 @@ export interface CandidateSummary {
 
     extraction_confidence?: number;
 
+    sql_test_score?: number | null;
+
 
     created_at?: string;
 

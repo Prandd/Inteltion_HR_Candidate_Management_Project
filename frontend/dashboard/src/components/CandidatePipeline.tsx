@@ -16,7 +16,6 @@ import PipelineColumn from "../components/PipelineColumn";
 
 import PipelineCandidateCard from "../components/PipelineCandidateCard";
 
-
 import type {
     CandidateSummary
 } from "../types/candidate";
@@ -565,7 +564,7 @@ function CandidatePipeline(){
 
 
                         <option>
-                            Rejected
+                            Reject
                         </option>
 
 
@@ -798,7 +797,7 @@ function CandidatePipeline(){
 
                 <PipelineColumn
 
-                    name="Failed / Rejected"
+                    name="Reject"
 
                     count={
                         getCandidates("Rejected").length
