@@ -15,6 +15,14 @@ the frontend:
 Admin override, per the round-4 decision: an admin may DELETE anyone's comment
 (moderation) but may not EDIT one (attribution integrity - an edited comment
 still carries the original author's name).
+
+Round 5: PUT/DELETE are also mounted at `/candidates/comments/{id}` (in
+addition to the canonical `/comments/{id}`) purely as a compatibility alias -
+`feature/frontend-update` was built calling the `/candidates`-prefixed path.
+Both point at the exact same handler and enforce the exact same rules above;
+nothing about ownership or immutability changes based on which path was used.
+This is additive and safe regardless of how the wider contract mismatch with
+the frontend gets resolved - see FRONTEND_CONTRACT_GAPS.md.
 """
 import uuid
 
@@ -106,6 +114,7 @@ def create_comment(
 
 
 @router.put("/comments/{comment_id}")
+@router.put("/candidates/comments/{comment_id}")  # compatibility alias - see below
 def update_comment(
     comment_id: str,
     payload: CommentUpdate,
@@ -135,6 +144,7 @@ def update_comment(
 
 
 @router.delete("/comments/{comment_id}")
+@router.delete("/candidates/comments/{comment_id}")  # compatibility alias - see below
 def delete_comment(
     comment_id: str,
     db: Session = Depends(get_db),

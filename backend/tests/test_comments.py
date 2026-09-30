@@ -243,3 +243,59 @@ def test_invalid_comment_type_is_rejected(client, make_account, new_candidate):
     _, headers = make_account(role="hr")
     cid = new_candidate()["candidate_id"]
     assert _post(client, headers, cid, comment="hi", comment_type="gossip").status_code == 400
+
+
+# ---------------------------------------------- round 5: /candidates/comments alias
+
+
+def test_candidates_prefixed_path_edits_the_same_comment(
+    client, make_account, new_candidate
+):
+    """Compatibility alias added for feature/frontend-update, which calls
+    PUT/DELETE /candidates/comments/{id} instead of the canonical
+    /comments/{id}. Both paths must hit the exact same row and the exact same
+    ownership rule."""
+    account, headers = make_account(role="hr")
+    cid = new_candidate()["candidate_id"]
+    comment_id = _post(client, headers, cid, comment="original").json()["data"]["comment_id"]
+
+    r = client.put(
+        f"/api/candidates/comments/{comment_id}", headers=headers,
+        json={"comment": "edited via the alias path"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["comment"] == "edited via the alias path"
+
+    # The canonical path sees the same edit - it is the same row, not a copy.
+    canonical = client.get(f"/api/candidates/{cid}/comments", headers=headers).json()["data"]
+    assert canonical[0]["comment"] == "edited via the alias path"
+
+
+def test_candidates_prefixed_path_still_enforces_ownership(
+    client, make_account, new_candidate
+):
+    _, author_headers = make_account(role="hr")
+    _, other_headers = make_account(role="hr")
+    cid = new_candidate()["candidate_id"]
+    comment_id = _post(client, author_headers, cid, comment="mine").json()["data"]["comment_id"]
+
+    r = client.put(
+        f"/api/candidates/comments/{comment_id}", headers=other_headers,
+        json={"comment": "hijacked"},
+    )
+    assert r.status_code == 403
+
+
+def test_candidates_prefixed_delete_alias_also_soft_deletes(
+    client, make_account, new_candidate
+):
+    _, headers = make_account(role="hr")
+    cid = new_candidate()["candidate_id"]
+    comment_id = _post(client, headers, cid, comment="delete me").json()["data"]["comment_id"]
+
+    r = client.delete(f"/api/candidates/comments/{comment_id}", headers=headers)
+    assert r.status_code == 200
+    assert r.json()["data"]["deleted"] is True
+
+    listed = client.get(f"/api/candidates/{cid}/comments", headers=headers).json()["data"]
+    assert comment_id not in [c["comment_id"] for c in listed]
