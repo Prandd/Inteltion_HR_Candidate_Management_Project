@@ -1,13 +1,16 @@
 # backend/ - Inteltion HR Candidate API (MVP, Member 3)
 
 > 📋 **Teammates:** see [`CHANGELOG.md`](CHANGELOG.md) (ภาษาไทย) for what's been built, what
-> changed in the API contract, curl examples, and what each lane needs to update.
+> changed in the API contract, curl examples, and what each lane needs to update. See
+> [`FRONTEND_CONTRACT_GAPS.md`](FRONTEND_CONTRACT_GAPS.md) for known mismatches against
+> `feature/frontend-update` that still need a team decision.
 >
-> ✅ **Tested** — 104/104 `pytest` cases pass on Python 3.11.9 (Windows), plus a live `uvicorn`
+> ✅ **Tested** — 127/127 `pytest` cases pass on Python 3.11.9 (Windows), plus a live `uvicorn`
 > boot against a **real Azure Blob Storage account** (upload, SAS link, private-container check),
-> and an Alembic run of all four migrations against a database built to the round-3 schema —
+> and an Alembic run of all five migrations against a database built to the round-3 schema —
 > covering the new tables and columns, the `CV rejected` → `Rejected` rename, the
-> `email_normalized` backfill, the duplicate-email cleanup plus UNIQUE index, and `downgrade base`.
+> `email_normalized` backfill, the duplicate-email cleanup plus UNIQUE index, the round-5
+> candidate-ownership backfill, and `downgrade base`.
 >
 > Still unverified: the Docker image build (no Docker on the author's machine).
 
@@ -72,8 +75,11 @@ uvicorn app.main:app --reload --port 8000
 ## Database migrations
 
 Round 4 added five tables, three columns on `candidates`, and renamed the status `CV rejected`
-to `Rejected` (contract v2.1.0). New **tables** appear by themselves (`create_all` at startup);
-new **columns and the status rename do not**.
+to `Rejected` (contract v2.1.0). Round 5 added two more tables (`ownership_history`,
+`sql_test_scores`) and one more column (`candidates.owner_account_id`), and backfills that
+column for every pre-existing candidate from its earliest `status_history` row. New **tables**
+appear by themselves (`create_all` at startup); new **columns, the status rename, and the
+ownership backfill do not**.
 
 | Your situation | Command |
 |---|---|
@@ -103,6 +109,8 @@ pytest
 | `tests/test_pending_uploads.py` | the create-or-update decision: soft matches stop instead of guessing, both resolutions, the newest-match auto-pick, discard dropping the stored bytes, double-resolve and deleted-match races |
 | `tests/test_status.py` | backend enum == contract enum, `before_rejected_status` surviving an unrelated PUT, restore, status history |
 | `tests/test_storage_guardrail.py` | the account mismatch guard and versioned blob paths (no Azure account needed) |
+| `tests/test_ownership.py` | owner set to the original uploader, the `?owner_account_id=` filter, transfer by owner/admin, rejecting bystanders and self-granting targets, ownership history, owner surviving re-upload and both pending-upload resolutions |
+| `tests/test_sql_test_scores.py` | add/list, `raw_payload` preserved verbatim, multiple scores per candidate, auth required, non-finite score rejected with `400` (not `500`), unknown candidate `404` |
 
 ## Auth
 
@@ -144,9 +152,14 @@ Send `Authorization: Bearer <jwt>` on every `/api/*` call except `/health`. Miss
 | `GET`  | `/api/candidates/{id}/resume-versions` | `200` / `404` | every CV ever uploaded, newest first |
 | `GET` `POST` | `/api/candidates/{id}/comments` | `200` / `201` / `404` | `?comment_type=` filter |
 | `PUT` `DELETE` | `/api/comments/{comment_id}` | `200` / `403` / `404` | author only (admin may also delete) |
+| `PUT` `DELETE` | `/api/candidates/comments/{comment_id}` | `200` / `403` / `404` | alias of the row above, for `feature/frontend-update`'s path |
 | `POST` | `/api/candidates/{id}/restore` | `200` / `400` | undo a rejection |
 | `GET`  | `/api/candidates/{id}/status-history` | `200` / `404` | every status transition, attributed |
 | `GET`  | `/api/candidates/{id}/changes` | `200` / `404` | field-level diff, `source=reupload\|manual_edit` |
+| `POST` | `/api/candidates/{id}/transfer-ownership` | `200` / `400` / `403` / `404` | current owner or admin only; `{new_owner_account_id, reason?}` |
+| `GET`  | `/api/candidates/{id}/ownership-history` | `200` / `404` | every ownership assignment/transfer, newest first |
+| `POST` | `/api/candidates/{id}/sql-test-score` | `201` / `400` / `404` | `{score, source?, raw_payload?}`; `score` must be finite |
+| `GET`  | `/api/candidates/{id}/sql-test-scores` | `200` / `404` | every score for the candidate, newest first |
 | `GET`  | `/api/pending-uploads` | `200` | CVs waiting on a create-or-update decision, oldest first |
 | `POST` | `/api/pending-uploads/{id}/update` | `200` / `404` / `409` | merge into the existing candidate (newest match wins) |
 | `POST` | `/api/pending-uploads/{id}/create-new` | `201` / `404` / `409` | create a separate candidate instead |
@@ -202,6 +215,33 @@ with no email, so any number of email-less candidates coexist while a real colli
 | `min_experience` | `experience_total >= value` |
 | `max_experience` | `experience_total <= value` |
 | `q` | case-insensitive substring over `full_name`, `email`, `candidate_id`, skill names + tools |
+| `owner_account_id` | exact match on `owner_account_id` — for a "my candidates" view |
+
+### Candidate ownership (round 5)
+
+Rule: whoever imports a CV owns it. `owner_account_id` is set exactly once, at creation, to the
+account that uploaded the file — including the "create new" resolution of a pending upload, which
+always attributes ownership to the **original uploader**, not whoever clicks the button later.
+Re-uploading a CV, and resolving a pending upload as "update", never touch it.
+
+The only way to change it is `POST /api/candidates/{id}/transfer-ownership`, and only two callers
+may do so: the candidate's **current owner**, or any **admin**. Everyone else gets `403` -
+including the account being made the new owner (a transfer is always done *to* an account, never
+something an account grants itself). Every assignment and transfer is logged in
+`ownership_history` (the very first row, at creation, has `from_owner_account_id = null`); see
+`GET /api/candidates/{id}/ownership-history`.
+
+Pre-round-5 candidates got a one-time backfill (migration `0005`) from each candidate's earliest
+`status_history` row, falling back to the earliest active admin if none exists.
+
+### SQL-test scores (round 5)
+
+`sql_test_scores` holds scores reported by a separate external "SQL test" tool whose own request
+contract isn't finalized yet. `score` is the one field that's certain (must be a finite number -
+`Infinity`/`-Infinity`/`NaN` get `400`); `raw_payload` preserves anything else a caller sends,
+verbatim, so nothing is lost once the real shape is known. A candidate can be scored more than
+once - every submission is its own row, nothing is overwritten. See
+`shared-contracts/sql-test-score-schema.json`.
 
 ## Layout
 
@@ -215,24 +255,27 @@ backend/
     security.py       bcrypt hashing + login rate limiter
     database.py       SQLAlchemy engine / session
     models_db.py      Candidate + hr_accounts, comment_logs, resume_versions,
-                      status_history, candidate_change_log, pending_uploads
+                      status_history, candidate_change_log, pending_uploads,
+                      ownership_history, sql_test_scores
     schemas.py        Pydantic models = THE CONTRACT (mirrors shared-contracts/schema.json)
     services.py       merge policy, status transitions, change log, duplicate
-                      matching - domain logic, no HTTP
+                      matching, ownership, sql-test scores - domain logic, no HTTP
     storage.py        LocalDiskStorage / AzureBlobStorage + the account guardrail
     extraction.py     MOCK extract_candidate(bytes) -> dict, seeded from the content hash
-    seed.py           first admin + mock candidates + legacy comment backfill
+    seed.py           first admin + mock candidates + legacy comment backfill + owner backfill
     routers/
       auth.py             login / me / change-password
       hr_accounts.py      account management (admin)
-      candidates.py       candidate CRUD + upload + versions + history + changes
-      comments.py         comment_logs CRUD
+      candidates.py       candidate CRUD + upload + versions + history + changes +
+                           transfer-ownership + ownership-history + sql-test-score(s)
+      comments.py         comment_logs CRUD + the `/candidates/comments/{id}` path alias
       pending_uploads.py  the create-or-update decision queue
-  alembic/            migrations 0001 (new tables) .. 0004 (pending_uploads)
+  alembic/            migrations 0001 (new tables) .. 0005 (ownership + sql_test_scores)
   scripts/
     migrate_blobs.py        copy blobs between Azure accounts, fix DB paths
     gen_frontend_types.py   regenerate shared-contracts/status.ts
   tests/
+  FRONTEND_CONTRACT_GAPS.md  known mismatches vs feature/frontend-update, pending a team decision
   Dockerfile
   requirements.txt
   .env.example

@@ -1,7 +1,70 @@
 # Backend — สรุปงานที่ทำไปแล้ว (Member 3)
 
-> อัปเดตล่าสุด: 19 ก.ย. 2026 · branch `feature/backend` · รอบ 4 (ต่อจาก `3d9e555`)
+> อัปเดตล่าสุด: 30 ก.ย. 2026 · branch `feature/backend` · รอบ 5 (ต่อจากรอบ 4)
 > เอกสารนี้ไว้ให้เพื่อนในทีมอ่านว่า backend ตอนนี้เป็นยังไง มีอะไรเปลี่ยนบ้าง และต้องแก้ฝั่งตัวเองยังไง
+
+---
+
+## 🚨 รอบ 5 — ของที่เปลี่ยนแล้วกระทบคนอื่น
+
+`shared-contracts/schema.json` **bump เป็น v2.3.0** (additive ล้วน ไม่ breaking) + ไฟล์ contract ใหม่ 2 ไฟล์
+
+| # | เปลี่ยนอะไร | รายละเอียด | กระทบใคร |
+|---|---|---|---|
+| 1 | **candidate มี owner แล้ว** 🆕 | field ใหม่ `owner_account_id` / `owner_name` — ใครอัป CV ขึ้นมาคนแรกเป็นเจ้าของ record นั้น | Member 1, 2 |
+| 2 | **โอนความเป็นเจ้าของได้** 🆕 | `POST /api/candidates/{id}/transfer-ownership` — เจ้าของเดิม หรือ admin เท่านั้นที่โอนได้ | Member 1, 2 |
+| 3 | **คะแนนจากเครื่องมือ SQL test ภายนอก** 🆕 | `POST/GET /api/candidates/{id}/sql-test-score(s)` — เก็บ `score` (ตัวเลข) + `raw_payload` (อะไรก็ได้ที่ส่งมาเพิ่ม เก็บไว้เผื่อ) | Member 1, 2 (ถ้าจะโชว์คะแนนนี้ใน UI) |
+| 4 | **comment path เดิม `/candidates/comments/{id}` ใช้ได้แล้ว** 🆕 | เพิ่ม alias ให้ตรงกับที่ `feature/frontend-update` เรียกอยู่จริง (ของเดิม `/comments/{id}` ยังใช้ได้เหมือนเดิม ทั้งคู่ทำงานเหมือนกันทุกอย่าง) | Member 1 |
+
+> **เรื่อง owner สำคัญที่สุดรอบนี้** — กติกาคือ **"ใครอัป CV คนนั้นเป็นเจ้าของ"** ตั้งครั้งเดียวตอนสร้าง
+> record แล้ว **ไม่เปลี่ยนเองอัตโนมัติ** ไม่ว่าจะอัป CV ซ้ำกี่ครั้ง หรือมีคนอื่นกด "อัปเดต" ทับก็ตาม
+> จะเปลี่ยนได้ทางเดียวคือ endpoint โอนสิทธิ์ข้างบน และ **ต้องเป็นเจ้าของเดิมหรือ admin เท่านั้นที่กดได้**
+> (คนที่กำลังจะรับโอนกดรับเองไม่ได้ — ต้องให้อีกฝ่ายหรือ admin เป็นคนโอนมาให้)
+
+### 🆕 ข้อ 1-2 ละเอียด — ระบบ Ownership
+
+- **ตั้งตอนสร้างเท่านั้น**: candidate ใหม่ทุกตัว (อัปตรง ๆ หรือกด "create-new" จาก pending-upload)
+  ได้ `owner_account_id` = คนที่อัปไฟล์นั้นขึ้นมา **คนแรกที่อัป ไม่ใช่คนที่กด "create-new" ทีหลัง**
+  ถ้า pending-upload ค้างไว้หลายวันแล้วมีอีกคนมากด resolve เจ้าของยังเป็นคนอัปตอนแรกอยู่ดี
+- **อัปซ้ำ/resolve เป็น "update" ไม่แตะ owner เด็ดขาด** — เข้าชุดเดียวกับ `status`/`applied_position`
+  ที่การอัป CV ทับไม่มีสิทธิ์ไปยุ่ง
+- **โอนสิทธิ์**: `POST /api/candidates/{id}/transfer-ownership` body `{new_owner_account_id, reason?}`
+  - อนุญาต: เจ้าของปัจจุบัน หรือ `admin` เท่านั้น → คนอื่นโดน `403`
+  - **คนที่กำลังจะรับโอนกดเองไม่ได้** แม้จะเป็น target ก็ตาม (การโอนต้องมาจากอีกฝั่งเสมอ ไม่ใช่ self-grant)
+  - `404` ถ้า `new_owner_account_id` ไม่มีจริง, `400` ถ้าบัญชีนั้นถูกปิดใช้งานอยู่ หรือเป็นเจ้าของอยู่แล้ว
+- **ประวัติเต็ม**: ทุกครั้งที่ตั้ง/โอน owner จะมี row ใน `ownership_history` เสมอ (แม้แต่ตอนสร้าง candidate
+  ครั้งแรกก็มี row แรกที่ `from_owner_account_id = null`) → ดูได้ที่ `GET /api/candidates/{id}/ownership-history`
+- **filter "งานของฉัน"**: `GET /api/candidates?owner_account_id=<id>` — เอาค่าจาก `owner_account_id`
+  ที่ list เดิมส่งมาให้อยู่แล้วมาใส่ query ได้เลย
+- **candidate เก่าก่อนรอบ 5**: migration `0005` backfill owner ให้อัตโนมัติจาก `status_history`
+  แถวแรกสุดของแต่ละ candidate (= คนที่สร้างตอนอัปครั้งแรก) ถ้า candidate ไหนไม่มี `status_history`
+  เลย (แทบไม่มีในทางปฏิบัติ) จะ fallback ไปที่ admin ที่เก่าแก่ที่สุดที่ยัง active อยู่
+
+### 🆕 ข้อ 3 ละเอียด — คะแนนจากเครื่องมือ SQL test ภายนอก
+
+ทีมยังไม่ล็อก contract ของเครื่องมือตัวนี้ (รู้แค่ว่าเป็นระบบ/เครื่องมือแยกออกมาต่างหาก) เลยออกแบบให้
+**กันความเสี่ยงไว้ก่อน** แทนที่จะเดา shape:
+
+- `score` (ตัวเลข ต้อง finite เท่านั้น — ส่ง `Infinity`/`NaN` มาจะโดน `400` ทันที ไม่ยักไปพังตอน response)
+  เป็น field เดียวที่ "ชัวร์แล้ว" ว่าต้องมี
+- `raw_payload` เก็บทุกอย่างอื่นที่ส่งมาแบบ verbatim (เป็น JSON object เก็บได้ทุก shape) ไว้กันข้อมูลหาย
+  ถ้า contract จริงของเครื่องมือนั้นมี field มากกว่านี้ — พอรู้ shape จริงแล้วค่อยมาทำ column แยกทีหลังได้
+- **ไม่ทับกัน** — อัปคะแนนกี่ครั้งก็ได้ต่อ candidate หนึ่งตัว ทุกครั้งเป็น row ใหม่ ไม่มีการ overwrite
+  ของเก่า → `GET .../sql-test-scores` คืนมาทุกอันเรียงใหม่สุดก่อน
+- auth เหมือน endpoint อื่นทุกอัน (ต้อง login) — ยังไม่มี credential แบบ machine-to-machine
+  แยกให้เครื่องมือภายนอกยิงเข้ามาเอง (ยังไม่มีใครถามเรื่องนี้ ถ้าต้องการต้องคุยเพิ่ม)
+
+> 🐛 **เจอบั๊กจริงตอนเขียนเทสของฟีเจอร์นี้**: ส่ง `score: Infinity` เข้ามาแล้วระบบ validate ไม่ผ่านตามที่ควร
+> (`400`) แต่ตัว **error handler เองดันพังไปด้วย** (`500` แทน) เพราะ Starlette's `JSONResponse` กับ
+> FastAPI's validation-error payload ทั้งคู่ปฏิเสธ `NaN`/`Infinity` ในตัว JSON เอง แล้ว error message
+> ของเราดันฝัง raw value ที่ส่งมาไว้ในนั้นด้วย → แก้ด้วย sanitizer (`_json_safe` ใน `main.py`) แปลง
+> ค่าที่ไม่ finite เป็น string ก่อนส่งกลับ มีเทส regression กันไว้แล้ว
+
+### ข้อ 4 ละเอียด — comment path alias
+
+`feature/frontend-update` เรียก `PUT`/`DELETE` ที่ `/candidates/comments/{id}` (มี prefix `/candidates`)
+ส่วน backend ของจริงคือ `/comments/{id}` — เพิ่ม route คู่ขนานให้ทำงานเหมือนกันทุกกติกา (ownership check,
+soft delete ทุกอย่างเหมือนเดิม) ไม่ต้องเลือกฝั่งใดฝั่งหนึ่ง เป็นแค่ alias ไม่ใช่ endpoint ใหม่
 
 ---
 
@@ -90,15 +153,23 @@
 
 ---
 
-## ✅ สถานะการทดสอบ (18 ก.ย. 2026)
+## ✅ สถานะการทดสอบ (30 ก.ย. 2026 — รอบ 5)
 
 **เทสผ่านหมดแล้วครับ** รันจริงบน Python 3.11.9 (Windows):
 
 ```
-104 passed in 22.10s
+127 passed in 2.41s
 ```
 
-(รอบ 3 มี 15 เคส รอบนี้ 104 เคส) นอกจาก `pytest` ยังยืนยันของอื่นด้วย:
+(รอบ 4 มี 104 เคส รอบนี้เพิ่ม `test_ownership.py` + `test_sql_test_scores.py` +
+alias เทสใน `test_comments.py` รวมเป็น 127) เวลาลดลงมากเพราะลด bcrypt cost เฉพาะตอนเทส
+(ดูหัวข้อ "เรื่องเครื่องที่ใช้ dev" ข้างล่าง — เกี่ยวกับปัญหา RAM ของเครื่อง ไม่ใช่การลดความปลอดภัยจริง)
+
+migration `0005` (ownership + sql_test_scores) ก็เทสแยกต่างหากด้วย: สร้าง DB จำลองแบบ round-4 จริง
+(รัน alembic 0001-0004 จริง ไม่ใช่ `create_all()` ที่จะมี column รอบ 5 ติดมาด้วยเงียบ ๆ) ใส่ข้อมูลจำลอง
+แล้วรัน `upgrade head` เช็คว่า backfill owner ถูกต้อง + `downgrade` กลับได้สะอาด — ผ่านหมด
+
+(รอบ 3 มี 15 เคส รอบ 4 มี 104 เคส) นอกจาก `pytest` ยังยืนยันของอื่นด้วย:
 
 | เทสอะไร | ผล |
 |---|---|
@@ -315,12 +386,16 @@ comment รอดโดยไม่ต้องมี logic merge เลยส�
 
 ## 🗄️ Alembic (ของใหม่ — สำคัญถ้ามี DB เดิมอยู่)
 
-รอบนี้เพิ่ม **6 ตาราง** (`hr_accounts`, `comment_logs`, `resume_versions`, `status_history`,
+รอบ 4 เพิ่ม **6 ตาราง** (`hr_accounts`, `comment_logs`, `resume_versions`, `status_history`,
 `candidate_change_log`, `pending_uploads`) + **3 column ใหม่** ใน `candidates`
 + **เปลี่ยนชื่อ status** + **unique index บน email**
 
-มี migration 4 ตัว: `0001` ตารางใหม่ · `0002` เปลี่ยนชื่อ status · `0003` ลบ email ซ้ำ + unique index ·
-`0004` ตาราง `pending_uploads`
+รอบ 5 เพิ่มอีก **2 ตาราง** (`ownership_history`, `sql_test_scores`) + **1 column ใหม่**
+(`candidates.owner_account_id`) — migration `0005` ยังทำ **backfill owner ให้ candidate เก่าทุกตัว
+อัตโนมัติ** ด้วย (ดึงจาก `status_history` แถวแรกสุด) ไม่ต้องทำอะไรเพิ่มนอกจาก `alembic upgrade head`
+
+มี migration 5 ตัว: `0001` ตารางใหม่ · `0002` เปลี่ยนชื่อ status · `0003` ลบ email ซ้ำ + unique index ·
+`0004` ตาราง `pending_uploads` · `0005` ownership + sql_test_scores + backfill owner
 
 - ตาราง**ใหม่**เกิดเองจาก `create_all` ตอน start → ไม่ต้องทำอะไร
 - **column ใหม่, การเปลี่ยนชื่อ status, unique index ไม่เกิดเอง** ถ้ามีไฟล์ `dev.db` เดิมอยู่
@@ -350,13 +425,16 @@ alembic upgrade head
 
 | ไฟล์ | สถานะ |
 |---|---|
-| `shared-contracts/schema.json` | **v2.2.0** — เปลี่ยนชื่อ status, เพิ่ม 2 field, mark 2 field เป็น deprecated, `$defs.uploadResponse` + `needs_review[]` |
-| `shared-contracts/pending-upload-schema.json` | 🆕 คิวรอตัดสิน + endpoint ทั้ง 4 ตัว |
-| `shared-contracts/hr-account-schema.json` | 🆕 บัญชี HR + shape ของ login response |
-| `shared-contracts/comment-log-schema.json` | 🆕 comment + สรุป endpoint |
-| `shared-contracts/status.ts` | 🆕 **generate จาก schema.json** — `import` ไปใช้ อย่าพิมพ์ string status เอง |
-| `shared-contracts/mock-comments.json` | 🆕 comment ปลอม 13 อัน ทำ UI thread ได้เลยไม่ต้องรอ API |
-| `shared-contracts/mock-candidates.json` | อัปเดต — status ใหม่ + 2 field ใหม่ |
+| `shared-contracts/schema.json` | **v2.3.0** — เพิ่ม `owner_account_id`/`owner_name` (additive, ไม่ breaking) |
+| `shared-contracts/ownership-schema.json` | 🆕 `OwnershipHistory` + `transferRequest` + endpoint ทั้ง 2 ตัว |
+| `shared-contracts/sql-test-score-schema.json` | 🆕 `SqlTestScore` + endpoint ทั้ง 2 ตัว (contract ของเครื่องมือจริงยังไม่ล็อก — อ่านหมายเหตุในไฟล์) |
+| `backend/FRONTEND_CONTRACT_GAPS.md` | 🆕 สรุป 6 จุดที่ `feature/frontend-update` กับ backend คนละ contract กัน — ต้องให้ทีมเคาะ ไม่ใช่แก้เอง |
+| `shared-contracts/pending-upload-schema.json` | คิวรอตัดสิน + endpoint ทั้ง 4 ตัว |
+| `shared-contracts/hr-account-schema.json` | บัญชี HR + shape ของ login response |
+| `shared-contracts/comment-log-schema.json` | comment + สรุป endpoint (path alias ใหม่ยังไม่อยู่ในนี้ ดู "ข้อ 4" ด้านบน) |
+| `shared-contracts/status.ts` | **generate จาก schema.json** — `import` ไปใช้ อย่าพิมพ์ string status เอง |
+| `shared-contracts/mock-comments.json` | comment ปลอม 13 อัน ทำ UI thread ได้เลยไม่ต้องรอ API |
+| `shared-contracts/mock-candidates.json` | อัปเดต — status ใหม่ + field ใหม่ (ยังไม่มี owner เพราะเป็น mock ไม่ผ่าน backend จริง) |
 
 > ⚠️ ไฟล์ JSON พวกนี้ **อย่าเซฟทับด้วย Notepad หรือ PowerShell `Set-Content`** บน Windows
 > เพราะมันจะแอบใส่ BOM เข้าไปหน้าไฟล์ แล้ว `json.load()` ฝั่ง Python จะพังด้วย error
@@ -400,31 +478,36 @@ curl -X POST localhost:8000/api/auth/login \
 
 ---
 
-## Endpoint ทั้งหมด (รอบ 4)
+## Endpoint ทั้งหมด (ถึงรอบ 5)
 
 | Method | Path | ได้อะไร |
 |---|---|---|
 | `POST` | `/api/auth/login` | token + account |
-| `GET` | `/api/auth/me` | 🆕 ตัวเองเป็นใคร |
-| `POST` | `/api/auth/change-password` | 🆕 เปลี่ยนรหัสตัวเอง |
-| `GET` `POST` | `/api/hr-accounts` | 🆕 admin — list / สร้างบัญชี |
-| `PUT` `DELETE` | `/api/hr-accounts/{id}` | 🆕 admin — แก้ / ปิดใช้งาน |
-| `POST` | `/api/hr-accounts/{id}/reset-password` | 🆕 admin |
-| `GET` | `/api/candidates` | list ย่อ + filter/search |
+| `GET` | `/api/auth/me` | ตัวเองเป็นใคร |
+| `POST` | `/api/auth/change-password` | เปลี่ยนรหัสตัวเอง |
+| `GET` `POST` | `/api/hr-accounts` | admin — list / สร้างบัญชี |
+| `PUT` `DELETE` | `/api/hr-accounts/{id}` | admin — แก้ / ปิดใช้งาน |
+| `POST` | `/api/hr-accounts/{id}/reset-password` | admin |
+| `GET` | `/api/candidates` | list ย่อ + filter/search (🆕 รอบ 5: `?owner_account_id=`) |
 | `GET` `PUT` `DELETE` | `/api/candidates/{id}` | ดู / แก้ / ลบ |
-| `POST` | `/api/candidates/upload` | อัป CV หลายไฟล์ (**response เปลี่ยน**) |
+| `POST` | `/api/candidates/upload` | อัป CV หลายไฟล์ |
 | `GET` | `/api/candidates/{id}/resume-url` | ลิงก์ CV (`?version=` ได้) |
-| `GET` | `/api/candidates/{id}/resume-versions` | 🆕 CV ทุกเวอร์ชัน |
-| `GET` `POST` | `/api/candidates/{id}/comments` | 🆕 comment |
-| `PUT` `DELETE` | `/api/comments/{comment_id}` | 🆕 แก้ / ลบ comment |
-| `POST` | `/api/candidates/{id}/restore` | 🆕 ย้อนจากสถานะ rejected |
-| `GET` | `/api/candidates/{id}/status-history` | 🆕 ประวัติ status |
-| `GET` | `/api/candidates/{id}/changes` | 🆕 diff ระดับ field |
-| `GET` | `/api/pending-uploads` | 🆕 คิว CV ที่รอ HR ตัดสิน |
-| `POST` | `/api/pending-uploads/{id}/update` | 🆕 "คนเดิม" → merge เข้าคนที่มีอยู่ |
-| `POST` | `/api/pending-uploads/{id}/create-new` | 🆕 "คนละคน" → สร้างใหม่ |
-| `DELETE` | `/api/pending-uploads/{id}` | 🆕 "ไม่เอา" → ทิ้งไฟล์ |
-| `GET` | `/health` | 🆕 บอก storage backend + status enum ด้วย |
+| `GET` | `/api/candidates/{id}/resume-versions` | CV ทุกเวอร์ชัน |
+| `GET` `POST` | `/api/candidates/{id}/comments` | comment |
+| `PUT` `DELETE` | `/api/comments/{comment_id}` | แก้ / ลบ comment |
+| `PUT` `DELETE` | `/api/candidates/comments/{comment_id}` | 🆕 alias ของบรรทัดบน (ตรงกับที่ `feature/frontend-update` เรียก) |
+| `POST` | `/api/candidates/{id}/restore` | ย้อนจากสถานะ rejected |
+| `GET` | `/api/candidates/{id}/status-history` | ประวัติ status |
+| `GET` | `/api/candidates/{id}/changes` | diff ระดับ field |
+| `POST` | `/api/candidates/{id}/transfer-ownership` | 🆕 โอนความเป็นเจ้าของ (เจ้าของเดิม/admin เท่านั้น) |
+| `GET` | `/api/candidates/{id}/ownership-history` | 🆕 ประวัติเจ้าของทั้งหมด |
+| `POST` | `/api/candidates/{id}/sql-test-score` | 🆕 บันทึกคะแนนจากเครื่องมือ SQL test ภายนอก |
+| `GET` | `/api/candidates/{id}/sql-test-scores` | 🆕 คะแนนทั้งหมดของ candidate นี้ |
+| `GET` | `/api/pending-uploads` | คิว CV ที่รอ HR ตัดสิน |
+| `POST` | `/api/pending-uploads/{id}/update` | "คนเดิม" → merge เข้าคนที่มีอยู่ |
+| `POST` | `/api/pending-uploads/{id}/create-new` | "คนละคน" → สร้างใหม่ |
+| `DELETE` | `/api/pending-uploads/{id}` | "ไม่เอา" → ทิ้งไฟล์ |
+| `GET` | `/health` | บอก storage backend + status enum ด้วย |
 
 response envelope เหมือนเดิมทุกอัน: `{data, error}` · `400` ข้อมูลไม่ผ่าน · `401` token · `403` ไม่ใช่เจ้าของ/ไม่มีสิทธิ์ · `404` ไม่เจอ · `409` ซ้ำ · `429` login ถี่เกิน
 
@@ -443,6 +526,12 @@ response envelope เหมือนเดิมทุกอัน: `{data, erro
 - `possible_duplicate_of` ไม่ว่าง = อาจซ้ำกับคนอื่น → ขึ้นป้ายเตือนให้ HR ดู
   (ตอนนี้จะมีค่าเฉพาะคนที่ HR กดยืนยันแล้วว่า "คนละคน" — ดูข้อ 6)
 - ถ้าจะทำหน้ารวม "งานค้าง" ของ HR → `GET /api/pending-uploads` คือคิว CV ที่รอตัดสิน
+- 🆕 **รอบ 5**: candidate ทุกตัวมี `owner_account_id` / `owner_name` แล้ว — ถ้าจะทำหน้า "งานของฉัน"
+  ใช้ `GET /api/candidates?owner_account_id=<account_id ของตัวเอง>` ได้เลย
+- 🆕 ปุ่ม "โอนให้คนอื่นดูแลต่อ" → `POST /api/candidates/{id}/transfer-ownership` (โชว์ปุ่มนี้เฉพาะ
+  ตอน `owner_account_id` ตรงกับ `account_id` ของตัวเอง หรือ role ตัวเองเป็น `admin`)
+- 🆕 ถ้าจะโชว์คะแนนจากเครื่องมือ SQL test → `GET /api/candidates/{id}/sql-test-scores`
+  (list อาจว่างเปล่าถ้ายังไม่มีใครส่งคะแนนมา — ยังไม่มี UI ฝั่งไหนเขียนเข้าเลยตอนนี้)
 
 ### 🟩 Member 2 (Upload + Edit)
 - ⚠️ **`"CV rejected"` → `"Rejected"`** ในตัวกรอง / dropdown แก้ status
@@ -485,6 +574,28 @@ extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict
 
 ## ประวัติงาน
 
+### รอบ 5 — Ownership / SQL-test score / comment path alias (30 ก.ย. 2026)
+- ระบบ ownership: `owner_account_id` ตั้งครั้งเดียวตอนสร้าง (ใครอัป CV คนแรกเป็นเจ้าของ),
+  ไม่เปลี่ยนจากอัปซ้ำ/resolve pending-upload, โอนได้ทางเดียวคือ `transfer-ownership`
+  (เจ้าของเดิม/admin เท่านั้น, ปฏิเสธการรับโอนด้วยตัวเอง), ประวัติเต็มใน `ownership_history`
+- `sql_test_scores` — เก็บคะแนนจากเครื่องมือภายนอกที่ยังไม่ล็อก contract, `score` ต้อง finite,
+  `raw_payload` เก็บของเดิมไว้เผื่อ, ไม่มีการ overwrite (ทุกครั้งเป็น row ใหม่)
+- 🐛 แก้บั๊กจริง: ส่ง `score` เป็น `Infinity`/`NaN` ทำให้ **error handler เองพัง** (`500` แทน `400`)
+  เพราะ Starlette/FastAPI ปฏิเสธ non-finite float ทั้งใน response และใน validation-error payload
+  → เพิ่ม `_json_safe()` sanitizer ใน `main.py` + เทส regression
+- comment path alias `/candidates/comments/{id}` ให้ตรงกับที่ `feature/frontend-update` เรียกจริง
+- migration `0005`: เพิ่ม `ownership_history`, `sql_test_scores`, column `candidates.owner_account_id`
+  + backfill owner ให้ candidate เก่าทุกตัวจาก `status_history` อัตโนมัติ
+- 🐛 แก้บั๊ก (พบระหว่างเทส ไม่ใช่ของ product): เทสเคยยิงไปโดน Azure Blob จริง (`mockinteltionhr`)
+  ทุกครั้งที่รันเทส เพราะ `conftest.py` ไม่ได้ override `AZURE_STORAGE_CONNECTION_STRING` เลย
+  → บังคับเป็นค่าว่างในเทสแล้ว
+- เขียน `FRONTEND_CONTRACT_GAPS.md` สรุป 6 จุดที่ contract ของ `feature/frontend-update` กับ backend
+  ไม่ตรงกัน (login ไม่ได้ต่อ backend จริง, upload field/duplicate-flow คนละ shape,
+  comment path/id-type/role-dropdown, status-history embed vs endpoint แยก) — รอทีมเคาะ
+  แก้ไปแล้วเฉพาะจุดที่ปลอดภัยและไม่ต้องเถียง (comment path alias)
+- contract v2.3.0 (`owner_account_id`/`owner_name`) — additive ไม่ breaking
+- เทสเพิ่ม `test_ownership.py`, `test_sql_test_scores.py` รวมเป็น **127 เคส ผ่านหมด**
+
 ### รอบ 4 — HR accounts / comment_logs / re-upload / audit (18-19 ก.ย. 2026)
 - F6 enum มีที่มาที่เดียว + assert ตอน start + generate TypeScript
   + **เปลี่ยนชื่อ `CV rejected` → `Rejected`** (contract v2.1.0, มี migration `0002`)
@@ -516,37 +627,44 @@ extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict
 ```
 backend/
   app/
-    main.py          FastAPI app, CORS, error envelope, /health, assert status ตอน start
-    config.py        ตั้งค่าทั้งหมดจาก env
-    statuses.py      🆕 status enum ที่มาที่เดียว (โหลดจาก schema.json)
+    main.py          FastAPI app, CORS, error envelope, /health, assert status ตอน start,
+                      🆕 _json_safe() sanitizer กัน non-finite float พังตอน validation error
+    config.py        ตั้งค่าทั้งหมดจาก env (🆕 bcrypt_rounds)
+    statuses.py      status enum ที่มาที่เดียว (โหลดจาก schema.json)
     auth.py          JWT + get_current_account() + require_role()
-    security.py      🆕 bcrypt + rate limiter
+    security.py      bcrypt + rate limiter
     database.py      SQLAlchemy
-    models_db.py     candidates + 6 ตารางใหม่
-    schemas.py       Pydantic = ตัวสัญญาจริงในโค้ด
-    services.py      🆕 merge policy / status transition / change log / dup logic (ไม่มี HTTP)
+    models_db.py     candidates + 8 ตาราง (🆕 ownership_history, sql_test_scores)
+    schemas.py       Pydantic = ตัวสัญญาจริงในโค้ด (🆕 ownership/sql-test schemas)
+    services.py      merge policy / status transition / change log / dup logic
+                      (🆕 owner_name_for, record_ownership_change, transfer_ownership,
+                      assign_initial_owner, record_sql_test_score) ไม่มี HTTP
     storage.py       LocalDisk / AzureBlob + guardrail + versioned path
     extraction.py    mock ของ Member 4 (pure function ของไฟล์)
-    seed.py          seed admin + mock candidates + backfill comment
+    seed.py          seed admin + mock candidates + backfill comment + 🆕 backfill owner
     routers/
       auth.py            login / me / change-password
-      hr_accounts.py     🆕 จัดการบัญชี (admin)
+      hr_accounts.py     จัดการบัญชี (admin)
       candidates.py      candidate + upload + versions + history + changes
-      comments.py        🆕 comment_logs
-      pending_uploads.py 🆕 คิวรอตัดสิน create-or-update
-  alembic/           🆕 migration 0001-0004
+                          + 🆕 transfer-ownership / ownership-history / sql-test-score(s)
+      comments.py        comment_logs + 🆕 path alias `/candidates/comments/{id}`
+      pending_uploads.py คิวรอตัดสิน create-or-update
+  alembic/           migration 0001-0005 (🆕 0005 = ownership + sql_test_scores + backfill)
   scripts/
-    migrate_blobs.py       🆕 ย้าย blob ข้าม Azure account
-    gen_frontend_types.py  🆕 generate status.ts จาก schema.json
-  tests/             104 เคส ผ่านหมด
+    migrate_blobs.py       ย้าย blob ข้าม Azure account
+    gen_frontend_types.py  generate status.ts จาก schema.json
+  tests/             127 เคส ผ่านหมด (🆕 test_ownership.py, test_sql_test_scores.py)
+  FRONTEND_CONTRACT_GAPS.md  🆕 6 จุดที่ contract ฝั่ง frontend/backend ไม่ตรงกัน — รอทีมเคาะ
 shared-contracts/
-  schema.json                 v2.2.0
-  pending-upload-schema.json  🆕
-  hr-account-schema.json      🆕
-  comment-log-schema.json     🆕
-  status.ts                   🆕 generated
-  mock-candidates.json        อัปเดตแล้ว
-  mock-comments.json          🆕
+  schema.json                 v2.3.0
+  ownership-schema.json       🆕
+  sql-test-score-schema.json  🆕
+  pending-upload-schema.json  
+  hr-account-schema.json      
+  comment-log-schema.json     
+  status.ts                   generated
+  mock-candidates.json        
+  mock-comments.json          
 ```
 
 มีอะไรไม่ชัดทักได้เลยครับ 🙏
