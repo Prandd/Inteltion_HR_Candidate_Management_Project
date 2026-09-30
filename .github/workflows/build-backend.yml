@@ -12,6 +12,15 @@ on:
         description: "Tag to push, e.g. round5"
         required: true
         default: "latest"
+  # workflow_dispatch can't be triggered via API/gh CLI on a non-default branch
+  # until the workflow file has run at least once from a push - so this also
+  # fires on push, defaulting the tag to "round5" (see the tag expression below).
+  push:
+    branches: [feature/backend]
+    paths:
+      - "backend/**"
+      - ".dockerignore"
+      - ".github/workflows/build-backend.yml"
 
 jobs:
   build-and-push:
@@ -32,4 +41,4 @@ jobs:
           context: .
           file: backend/Dockerfile
           push: true
-          tags: ${{ secrets.ACR_LOGIN_SERVER }}/inteltion-backend:${{ inputs.image_tag }}
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/inteltion-backend:${{ github.event.inputs.image_tag || 'round5' }}
