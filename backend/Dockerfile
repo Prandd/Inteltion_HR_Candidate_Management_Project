@@ -1,4 +1,11 @@
-FROM python:3.11-slim
+
+# Pinned to bookworm (Debian 12), not the floating `python:3.11-slim` (which
+# now resolves to trixie/Debian 13) - Microsoft's ODBC apt repo below is
+# published per-Debian-version as .../debian/12/..., and trixie's newer apt
+# (sqv) rejects that repo's signature under a stricter SHA1 policy that
+# bookworm's apt doesn't enforce. Matching the repo's own target release
+# avoids the mismatch instead of weakening any signature check.
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
