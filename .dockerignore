@@ -1,0 +1,28 @@
+# Build context is the repo root (see backend/Dockerfile + docker-compose.yml).
+# Anything matched here is NEVER sent to the Docker build context, so it can't
+# end up in an image layer even by accident - this is the guard for
+# backend/.env, which holds a real Azure Blob Storage connection string.
+
+.env
+.env.*
+!.env.example
+azure-storage-connection-string.txt
+
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/.pytest_cache/
+backend/data/
+*.db
+*.sqlite3
+
+.git/
+.gitignore
+.dockerignore
+
+node_modules/
+frontend/**/dist/
+frontend/**/.next/
+
+*.md
