@@ -1,1225 +1,676 @@
 import os
-import sys
 import uuid
-
 from datetime import datetime, timezone
-from ..models_db import Candidate, CandidateStatusHistory
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    HTTPException,
-    UploadFile,
-)
-
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-
-# ==================================================
-# Import LLM CV Extractor
-# ==================================================
-
-LLM_SERVICE_PATH = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "../../../llm-service/cv-parsing"
-    )
-)
-
-
-if LLM_SERVICE_PATH not in sys.path:
-    sys.path.append(LLM_SERVICE_PATH)
-
-
-try:
-
-    from extractor import extract_candidate
-
-
-except Exception as e:
-
-    raise ImportError(
-        f"Cannot import CV extractor from {LLM_SERVICE_PATH}: {e}"
-    )
-
-
-
-# ==================================================
-# Backend imports
-# ==================================================
-
+from ..auth import get_current_account
 from ..config import settings
 from ..database import get_db
+from ..extraction import extract_candidate  # MOCK - swap for llm-service on Day 6
 from ..models_db import (
     Candidate,
-    CandidateStatusHistory,
-    CandidateComment
+    CandidateChangeLog,
+    CommentLog,
+    HRAccount,
+    OwnershipHistory,
+    PendingUpload,
+    ResumeVersion,
+    SqlTestScore,
+    StatusHistory,
+    utcnow,
 )
-
 from ..schemas import (
+    DELETABLE_UPLOAD_STATUSES,
+    STATUS_SET,
     STATUS_VALUES,
     CandidateBase,
-    CandidateOut,
     CandidateSummary,
     CandidateUpdate,
-    CommentCreate,
-    CommentOut
+    ChangeLogOut,
+    OwnershipHistoryOut,
+    ResumeVersionOut,
+    SqlTestScoreIn,
+    SqlTestScoreOut,
+    StatusChangeRequest,
+    StatusHistoryOut,
+    TransferOwnershipRequest,
 )
-
+from ..services import (
+    apply_status_change,
+    assign_initial_owner,
+    candidate_out,
+    find_duplicate_hints,
+    merge_on_reupload,
+    next_candidate_id,
+    normalize_email,
+    owner_names_for,
+    pending_upload_preview,
+    record_change,
+    record_sql_test_score,
+    store_resume,
+    transfer_ownership,
+)
+from ..statuses import REJECTED_STATES
 from ..storage import storage
 
+# Every candidate endpoint requires a valid bearer token (see auth.py).
+router = APIRouter(tags=["candidates"], dependencies=[Depends(get_current_account)])
+
+ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 
 
-router = APIRouter(
-    tags=["candidates"]
-)
+def _to_out(row: Candidate, db: Session) -> dict:
+    """Thin alias kept so the rest of this file reads the same as before -
+    candidate_out() moved to services.py so routers/pending_uploads.py can
+    share it without importing this router."""
+    return candidate_out(db, row)
 
 
-
-ALLOWED_EXTENSIONS = {
-    ".pdf",
-    ".docx"
-}
-
-
-_STATUS_SET = set(
-    STATUS_VALUES
-)
-
-
-
-# ==================================================
-# FORMAT RESPONSE
-# ==================================================
-
-
-def _to_out(row: Candidate):
-
-    data = (
-        CandidateOut
-        .model_validate(row)
-        .model_dump(mode="json")
-    )
-
-
-    for key, value in data.items():
-
-        if value is None:
-
-            if key in [
-                "skills",
-                "experience",
-                "education"
-            ]:
-
-                data[key] = []
-
-            else:
-
-                data[key] = "-"
-
-
-    return data
-
-
-
-
-
-
-def _to_summary(row: Candidate):
-
+def _to_summary(row: Candidate, owner_names: dict[str, str] | None = None) -> dict:
+    owner_names = owner_names or {}
     return CandidateSummary(
-
         candidate_id=row.candidate_id,
-
-        full_name=
-            row.full_name
-            or "Unknown Candidate",
-
-        applied_position=
-            row.applied_position
-            or "-",
-
-
-        location=
-            row.location
-            or "-",
-
-
-        email=
-            row.email
-            or "-",
-
-
-        phone=
-            row.phone
-            or "-",
-
-
-        experience_total=
-            row.experience_total
-            or 0,
-
-
-        status=
-            row.status
-            or "New",
-
-
-        top_skills=[
-
-            s.get("skill", "")
-
-            for s in (row.skills or [])
-
-        ][:5],
-
-
-        extraction_confidence=
-            row.extraction_confidence
-            or 0,
-
-
+        full_name=row.full_name,
+        applied_position=row.applied_position,
+        location=row.location,
+        email=row.email,
+        phone=row.phone,
+        experience_total=row.experience_total,
+        status=row.status,
+        before_rejected_status=row.before_rejected_status or "",
+        upload_status=row.upload_status,
+        top_skills=[s.get("skill", "") for s in (row.skills or [])][:5],
+        extraction_confidence=row.extraction_confidence,
         created_at=row.created_at,
-
+        owner_account_id=row.owner_account_id or "",
+        owner_name=owner_names.get(row.owner_account_id or "", ""),
     ).model_dump(mode="json")
 
 
+def _matches_keyword(row: Candidate, needle: str) -> bool:
+    """`q` search across full_name, email, candidate_id, and skills (skill names
+    + tools)."""
+    hay = [row.full_name or "", row.email or "", row.candidate_id or ""]
+    for s in row.skills or []:
+        hay.append(s.get("skill", ""))
+        hay.extend(s.get("tools", []) or [])
+    return any(needle in h.lower() for h in hay)
 
 
-
-# ==================================================
-# GET ALL
-# ==================================================
+def _get_or_404(db: Session, candidate_id: str) -> Candidate:
+    row = db.get(Candidate, candidate_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Candidate '{candidate_id}' not found")
+    return row
 
 
 @router.get("/candidates")
 def list_candidates(
-
-    db: Session = Depends(get_db)
-
+    db: Session = Depends(get_db),
+    status: str | None = Query(None, description="exact match on candidate status"),
+    applied_position: str | None = Query(None, description="exact match on position"),
+    min_experience: float | None = Query(None, description="experience_total >= this"),
+    max_experience: float | None = Query(None, description="experience_total <= this"),
+    q: str | None = Query(None, description="keyword: full_name, email, skills, candidate_id"),
+    owner_account_id: str | None = Query(
+        None, description="exact match on owner - pass the caller's own account_id "
+                          "for a 'my candidates' filter"
+    ),
 ):
+    query = db.query(Candidate)
+    if status:
+        query = query.filter(Candidate.status == status)
+    if applied_position:
+        query = query.filter(Candidate.applied_position == applied_position)
+    if min_experience is not None:
+        query = query.filter(Candidate.experience_total >= min_experience)
+    if max_experience is not None:
+        query = query.filter(Candidate.experience_total <= max_experience)
+    if owner_account_id:
+        query = query.filter(Candidate.owner_account_id == owner_account_id)
 
-    rows = (
+    rows = query.order_by(Candidate.created_at.desc()).all()
 
-        db.query(Candidate)
+    if q and q.strip():
+        needle = q.strip().lower()
+        rows = [r for r in rows if _matches_keyword(r, needle)]
 
-        .order_by(
-            Candidate.created_at.desc()
-        )
-
-        .all()
-
-    )
-
-
-    result = []
-
-
-    for row in rows:
-
-
-        summary = _to_summary(row)
-
-
-        rejected_after = None
-
-
-        if row.status == "CV rejected":
-
-
-            history = (
-
-                db.query(CandidateStatusHistory)
-
-                .filter(
-                    CandidateStatusHistory.candidate_id
-                    ==
-                    row.candidate_id
-                )
-
-                .order_by(
-                    CandidateStatusHistory.changed_at.desc()
-                )
-
-                .first()
-
-            )
-
-
-            if history:
-
-                rejected_after = history.previous_status
-
-
-
-        summary["rejected_after"] = rejected_after
-
-
-        result.append(summary)
-
-
-
-    return {
-
-        "data": result,
-
-        "error": None
-
-    }
-
-
-
-
-
-# ==================================================
-# GET ONE
-# ==================================================
+    owner_names = owner_names_for(db, [r.owner_account_id for r in rows])
+    return {"data": [_to_summary(r, owner_names) for r in rows], "error": None}
 
 
 @router.get("/candidates/{candidate_id}")
-def get_candidate(
-
-    candidate_id: str,
-
-    db: Session = Depends(get_db)
-
-):
-
-    row = db.get(
-
-        Candidate,
-
-        candidate_id
-
-    )
-
-
-    if row is None:
-
-        raise HTTPException(
-
-            status_code=404,
-
-            detail="Candidate not found"
-
-        )
-    
-    history = (
-
-        db.query(CandidateStatusHistory)
-
-        .filter(
-            CandidateStatusHistory.candidate_id
-            ==
-            row.candidate_id
-        )
-
-        .order_by(
-            CandidateStatusHistory.changed_at.desc()
-        )
-
-        .all()
-
-    )
-    
-    data = _to_out(row)
-
-
-    data["resume_filename"] = row.resume_filename
-
-
-    data["resume_url"] = row.resume_url
-
-
-    data["status_history"] = [
-
-        {
-            "status": h.status,
-            "previous_status": h.previous_status,
-            "action": h.action,
-            "changed_by": h.changed_by,
-            "changed_at": h.changed_at
-        }
-
-        for h in history
-
-    ]
-
-
-    return {
-        "data": data,
-        "error": None
-    }
-
-
-
-
-# ==================================================
-# COMMENTS
-# ==================================================
-
-
-@router.get("/candidates/{candidate_id}/comments")
-def get_comments(
-
-    candidate_id: str,
-
-    db: Session = Depends(get_db)
-
-):
-
-    candidate = db.get(
-        Candidate,
-        candidate_id
-    )
-
-
-    if candidate is None:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Candidate not found"
-        )
-
-
-    comments = (
-
-        db.query(CandidateComment)
-
-        .filter(
-            CandidateComment.candidate_id
-            ==
-            candidate_id
-        )
-
-        .order_by(
-            CandidateComment.created_at.desc()
-        )
-
-        .all()
-
-    )
-
-
-    return {
-
-        "data": comments,
-
-        "error": None
-
-    }
-    
-@router.post("/candidates/{candidate_id}/comments")
-def create_comment(
-
-    candidate_id: str,
-
-    payload: CommentCreate,
-
-    db: Session = Depends(get_db)
-
-):
-
-
-    candidate = db.get(
-        Candidate,
-        candidate_id
-    )
-
-
-    if candidate is None:
-
-        raise HTTPException(
-            status_code=404,
-            detail="Candidate not found"
-        )
-
-
-
-    comment = CandidateComment(
-
-        candidate_id=candidate_id,
-
-        author=payload.author,
-
-        role=payload.role,
-
-        comment=payload.comment
-
-    )
-
-
-    db.add(comment)
-
-    db.commit()
-
-    db.refresh(comment)
-
-
-
-    return {
-
-        "data": comment,
-
-        "error": None
-
-    }
-
-# ==================================================
-# UPDATE
-# ==================================================
+def get_candidate(candidate_id: str, db: Session = Depends(get_db)):
+    return {"data": _to_out(_get_or_404(db, candidate_id), db), "error": None}
 
 
 @router.put("/candidates/{candidate_id}")
 def update_candidate(
-
     candidate_id: str,
-
     payload: CandidateUpdate,
-
-    db: Session = Depends(get_db)
-
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
 ):
+    row = _get_or_404(db, candidate_id)
 
-    row = db.get(
-
-        Candidate,
-
-        candidate_id
-
-    )
-
-
-    if row is None:
-
+    data = payload.model_dump(mode="json")
+    if data["email"] and "@" not in data["email"]:
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    new_status = data.pop("status")
+    if new_status not in STATUS_SET:
         raise HTTPException(
-
-            status_code=404,
-
-            detail="Candidate not found"
-
+            status_code=400,
+            detail=f"Invalid status '{new_status}'. Allowed: {STATUS_VALUES}",
         )
-
-
-    data = payload.model_dump(
-
-        mode="json",
-
-        exclude_unset=True
-
-    )
-
-
-    if "email" in data:
-
-        if data["email"] and "@" not in data["email"]:
-
-            raise HTTPException(
-
-                status_code=400,
-
-                detail="Invalid email"
-
-            )
-
-
-
-    if "status" in data:
-
-        if data["status"] not in _STATUS_SET:
-
-            raise HTTPException(
-
-                status_code=400,
-
-                detail="Invalid status"
-
-            )
-
-    old_status = row.status
-
-
-    status_changed = (
-        "status" in data
-        and data["status"] != old_status
-    )
-
-
-
-    if status_changed:
-
-
-        if data["status"] == "CV rejected":
-
-            action = (
-                f"Rejected after {old_status}"
-            )
-
-        else:
-
-            action = "Changed status"
-
-
-        history = CandidateStatusHistory(
-
-            candidate_id=row.candidate_id,
-
-            status=data["status"],
-
-            previous_status=old_status,
-
-            action=action,
-
-            changed_by="HR Admin"
-
-        )
-
-
-        db.add(history)
-
-
-
-
 
     for key, value in data.items():
+        old_value = getattr(row, key)
+        if old_value != value:
+            record_change(db, candidate_id, key, old_value, value,
+                          account.account_id, source="manual_edit")
+        setattr(row, key, value)
 
-        if value is not None:
+    row.email_normalized = normalize_email(row.email)
+    # `status` goes through the transition rule so before_rejected_status is
+    # maintained and a status_history row is written - never a blanket setattr.
+    apply_status_change(db, row, new_status, account.account_id)
 
-            setattr(
-                row,
-                key,
-                value
-            )
-
-
-    row.updated_at = datetime.now(
-        timezone.utc
-    )
-
-
-    db.commit()
-
-    db.refresh(row)
-
-
-    return {
-
-        "data":
-
-            _to_out(row),
-
-        "error": None
-
-    }
-    
-@router.put(
-    "/candidates/comments/{comment_id}"
-)
-def update_comment(
-
-    comment_id:int,
-
-    payload:dict,
-
-    db:Session = Depends(get_db)
-
-):
-
-    comment = (
-        db.query(CandidateComment)
-        .filter(
-            CandidateComment.id == comment_id
+    row.updated_at = datetime.now(timezone.utc)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Only the email_normalized UNIQUE constraint (added in migration 0003)
+        # can fire here. Without this, the caller would see a bare 500 for what
+        # is actually an ordinary, expected conflict.
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Email '{data['email']}' is already used by another candidate",
         )
-        .first()
-    )
+    db.refresh(row)
+    return {"data": _to_out(row, db), "error": None}
 
 
-    if not comment:
+@router.post("/candidates/{candidate_id}/restore")
+def restore_candidate(
+    candidate_id: str,
+    payload: StatusChangeRequest | None = None,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """F5 - undo a rejection: move the candidate back to the stage they held
+    before they were rejected. This is the reason before_rejected_status exists."""
+    row = _get_or_404(db, candidate_id)
+    if row.status not in REJECTED_STATES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Candidate '{candidate_id}' is not in a rejected state",
+        )
+    target = row.before_rejected_status or "New"
+    if target not in STATUS_SET:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot restore: '{target}' is not a valid status",
+        )
 
+    apply_status_change(db, row, target, account.account_id,
+                        reason=(payload.reason if payload else "") or "restored from rejection")
+    db.commit()
+    db.refresh(row)
+    return {"data": _to_out(row, db), "error": None}
+
+
+@router.post("/candidates/{candidate_id}/transfer-ownership")
+def transfer_candidate_ownership(
+    candidate_id: str,
+    payload: TransferOwnershipRequest,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """Round 5 - "Owner changes owner to give to another user, only their own."
+    Allowed callers: the CURRENT owner (transferring their own candidate away),
+    or any `admin` (override). Anyone else -> 403, even if they are the new
+    owner-to-be - a transfer is something done TO an account, never something
+    an account does to grant itself ownership."""
+    row = _get_or_404(db, candidate_id)
+
+    if account.account_id != row.owner_account_id and account.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only the current owner or an admin can transfer ownership",
+        )
+
+    new_owner = db.get(HRAccount, payload.new_owner_account_id)
+    if new_owner is None:
         raise HTTPException(
             status_code=404,
-            detail="Comment not found"
+            detail=f"HR account '{payload.new_owner_account_id}' not found",
+        )
+    if not new_owner.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail=f"HR account '{payload.new_owner_account_id}' is deactivated",
+        )
+    if new_owner.account_id == row.owner_account_id:
+        raise HTTPException(
+            status_code=400, detail="That account already owns this candidate"
         )
 
-
-    comment.comment = payload["comment"]
-
-    comment.author = "HR Admin"
-
-
+    transfer_ownership(db, row, new_owner.account_id, account.account_id,
+                       reason=payload.reason)
     db.commit()
+    db.refresh(row)
+    return {"data": _to_out(row, db), "error": None}
 
-    db.refresh(comment)
 
-
+@router.get("/candidates/{candidate_id}/ownership-history")
+def get_ownership_history(candidate_id: str, db: Session = Depends(get_db)):
+    _get_or_404(db, candidate_id)
+    rows = (
+        db.query(OwnershipHistory)
+        .filter(OwnershipHistory.candidate_id == candidate_id)
+        .order_by(OwnershipHistory.changed_at.desc())
+        .all()
+    )
     return {
-        "data":comment
+        "data": [OwnershipHistoryOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "error": None,
     }
-    
-# ==================================================
-# RESUME URL
-# ==================================================
+
+
+@router.post("/candidates/{candidate_id}/sql-test-score", status_code=201)
+def add_sql_test_score(
+    candidate_id: str,
+    payload: SqlTestScoreIn,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """Round 5 - record a score from the external SQL-test tool.
+
+    NOTE: this tool's real request contract is not confirmed yet (round-5
+    kickoff: "ระบบ/เครื่องมือภายนอกแยกออกมา"). Today this accepts a plain
+    `{score, source?, raw_payload?}` body under the same HR-account auth as
+    every other endpoint; `raw_payload` keeps whatever else the caller sent so
+    nothing is lost once the real shape is known. If that tool turns out to be
+    a service calling in on its own (not a logged-in HR user), this endpoint's
+    auth will need a service-credential path added alongside the existing one,
+    not instead of it.
+    """
+    _get_or_404(db, candidate_id)
+    row = record_sql_test_score(
+        db, candidate_id, payload.score, payload.source, payload.raw_payload,
+        recorded_by=account.account_id,
+    )
+    db.commit()
+    db.refresh(row)
+    return {"data": SqlTestScoreOut.model_validate(row).model_dump(mode="json"), "error": None}
+
+
+@router.get("/candidates/{candidate_id}/sql-test-scores")
+def list_sql_test_scores(candidate_id: str, db: Session = Depends(get_db)):
+    _get_or_404(db, candidate_id)
+    rows = (
+        db.query(SqlTestScore)
+        .filter(SqlTestScore.candidate_id == candidate_id)
+        .order_by(SqlTestScore.recorded_at.desc())
+        .all()
+    )
+    return {
+        "data": [SqlTestScoreOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "error": None,
+    }
+
+
+@router.get("/candidates/{candidate_id}/status-history")
+def get_status_history(candidate_id: str, db: Session = Depends(get_db)):
+    _get_or_404(db, candidate_id)
+    rows = (
+        db.query(StatusHistory)
+        .filter(StatusHistory.candidate_id == candidate_id)
+        .order_by(StatusHistory.changed_at.desc())
+        .all()
+    )
+    return {
+        "data": [StatusHistoryOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "error": None,
+    }
+
+
+@router.get("/candidates/{candidate_id}/changes")
+def get_change_log(candidate_id: str, db: Session = Depends(get_db)):
+    """F4 step 4 - field-level diff of everything that has changed on this
+    record, including every field a re-upload overwrote."""
+    _get_or_404(db, candidate_id)
+    rows = (
+        db.query(CandidateChangeLog)
+        .filter(CandidateChangeLog.candidate_id == candidate_id)
+        .order_by(CandidateChangeLog.changed_at.desc())
+        .all()
+    )
+    return {
+        "data": [ChangeLogOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "error": None,
+    }
+
+
+@router.get("/candidates/{candidate_id}/resume-versions")
+def list_resume_versions(candidate_id: str, db: Session = Depends(get_db)):
+    """Every CV ever uploaded for this candidate, newest first. "What did their
+    CV look like when we first screened them" has an answer now."""
+    _get_or_404(db, candidate_id)
+    rows = (
+        db.query(ResumeVersion)
+        .filter(ResumeVersion.candidate_id == candidate_id)
+        .order_by(ResumeVersion.version_no.desc())
+        .all()
+    )
+    return {
+        "data": [ResumeVersionOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "error": None,
+    }
 
 
 @router.get("/candidates/{candidate_id}/resume-url")
 def get_resume_url(
-
     candidate_id: str,
-
-    db: Session = Depends(get_db)
-
+    db: Session = Depends(get_db),
+    version: int | None = Query(None, description="defaults to the newest version"),
 ):
+    """Resolves a fresh, working link every call - for Azure Blob this is a
+    short-lived SAS URL, so don't rely on the `resume_url` stored on the
+    candidate record staying valid forever; call this endpoint instead."""
+    row = _get_or_404(db, candidate_id)
 
-    row = db.get(
+    query = db.query(ResumeVersion).filter(ResumeVersion.candidate_id == candidate_id)
+    if version is not None:
+        query = query.filter(ResumeVersion.version_no == version)
+    target = query.order_by(ResumeVersion.version_no.desc()).first()
 
-        Candidate,
-
-        candidate_id
-
-    )
-
-
-    if row is None:
-
+    if target is not None:
+        url = storage.resolve_path_url(target.blob_path)
+        filename, version_no = target.filename, target.version_no
+    elif version is not None:
         raise HTTPException(
-
             status_code=404,
-
-            detail="Candidate not found"
-
+            detail=f"Candidate '{candidate_id}' has no resume version {version}",
         )
-
-
-    return {
-
-        "data": {
-
-            "resume_url":
-
-                row.resume_url,
-
-
-            "filename":
-
-                row.resume_filename
-
-        },
-
-        "error": None
-
-    }
-
-
-
-
-
-# ==================================================
-# UPLOAD
-# ==================================================
-
-
-@router.post(
-    "/candidates/upload",
-    status_code=201
-)
-async def upload_candidate(
-
-    file: UploadFile,
-
-    force: bool = False,
-
-    candidate_id: str | None = None,
-
-    db: Session = Depends(get_db)
-
-):
-
-
-    print(
-        "========== UPLOAD DEBUG =========="
-    )
-
-    print(
-        "force =",
-        force
-    )
-
-    print(
-        "candidate_id =",
-        candidate_id
-    )
-
-    print(
-        "filename =",
-        file.filename
-    )
-
-    print(
-        "=================================="
-    )
-
-
-    # -------------------------------
-    # Validate extension
-    # -------------------------------
-
-    ext = os.path.splitext(
-
-        file.filename or ""
-
-    )[1].lower()
-
-
-
-    if ext not in ALLOWED_EXTENSIONS:
-
-        raise HTTPException(
-
-            status_code=400,
-
-            detail="Only PDF and DOCX allowed"
-
-        )
-
-
-
-    # -------------------------------
-    # Read file
-    # -------------------------------
-
-    content = await file.read()
-
-
-
-    if not content:
-
-        raise HTTPException(
-
-            status_code=400,
-
-            detail="Empty file"
-
-        )
-
-
-
-    if len(content) > settings.max_upload_mb * 1024 * 1024:
-
-        raise HTTPException(
-
-            status_code=400,
-
-            detail="File too large"
-
-        )
-
-
-
-
-
-    # -------------------------------
-    # Create candidate id
-    # -------------------------------
-
-    if not force:
-
-        candidate_id = str(
-            uuid.uuid4()
-        )
-    # -------------------------------
-    # Save resume
-    # -------------------------------
-
-    stored = storage.save(
-
-        candidate_id,
-
-        file.filename,
-
-        content
-
-    )
-
-
-
-
-
-    # -------------------------------
-    # Extract CV
-    # -------------------------------
-
-    raw = extract_candidate(
-
-        content,
-
-        filename=file.filename
-
-    )
-    
-    # -------------------------------
-    # Duplicate Check
-    # -------------------------------
-
-    if not force:
-
-        existing = None
-
-
-        if raw.get("email"):
-
-            existing = (
-                db.query(Candidate)
-                .filter(
-                    Candidate.email == raw["email"]
-                )
-                .first()
-            )
-
-
-        if existing:
-
-            return {
-                "duplicate": True,
-
-                "candidate": {
-                    "candidate_id":
-                        existing.candidate_id,
-
-                    "full_name":
-                        existing.full_name,
-
-                    "email":
-                        existing.email,
-
-                    "phone":
-                        existing.phone,
-
-                    "applied_position":
-                        existing.applied_position,
-
-                    "status":
-                        existing.status
-                },
-
-                "data": None,
-
-                "error": None
-            }
-
-
-
-
-
-    print("==============================")
-
-    print("EXTRACT RESULT")
-
-    print(raw)
-
-    print("==============================")
-
-
-
-
-
-    # -------------------------------
-    # Normalize extractor output
-    # -------------------------------
-
-    if not isinstance(raw, dict):
-
-        raw = {}
-
-
-
-    # name -> full_name
-
-    if not raw.get("full_name"):
-
-
-        if raw.get("name"):
-
-            raw["full_name"] = raw["name"]
-
-
-
-        elif raw.get("candidate_name"):
-
-            raw["full_name"] = raw["candidate_name"]
-
-
-
-
-
-    # default values
-
-    raw.setdefault(
-        "full_name",
-        ""
-    )
-
-
-    raw.setdefault(
-        "email",
-        ""
-    )
-
-
-    raw.setdefault(
-        "phone",
-        ""
-    )
-
-
-    raw.setdefault(
-        "location",
-        ""
-    )
-
-
-    raw.setdefault(
-        "applied_position",
-        ""
-    )
-
-
-    raw.setdefault(
-        "summary",
-        ""
-    )
-
-
-    raw.setdefault(
-        "skills",
-        []
-    )
-
-
-    raw.setdefault(
-        "experience",
-        []
-    )
-
-
-    raw.setdefault(
-        "education",
-        []
-    )
-
-
-
-
-
-    # -------------------------------
-    # Validate schema
-    # -------------------------------
-
-    fields = (
-
-        CandidateBase
-
-        .model_validate(raw)
-
-        .model_dump(mode="json")
-
-    )
-
-
-
-
-
-    # -------------------------------
-    # Save database
-    # -------------------------------
-
-    # -------------------------------
-    # Save database
-    # -------------------------------
-
-    if force and candidate_id:
-
-
-        row = db.get(
-            Candidate,
-            candidate_id
-        )
-
-
-        if row is None:
-
-            raise HTTPException(
-                status_code=404,
-                detail="Candidate not found"
-            )
-
-
-        # Update existing candidate
-
-        for key, value in fields.items():
-
-            setattr(
-                row,
-                key,
-                value
-            )
-
-
-        row.resume_url = stored["url"]
-
-        row.resume_filename = stored["filename"]
-        
-        history = CandidateStatusHistory(
-
-            candidate_id=row.candidate_id,
-
-            status=row.status,
-
-            previous_status=row.status,
-
-            action="Resume replaced",
-
-            changed_by="HR Admin"
-
-        )
-
-
-        db.add(history)
-
-        row.updated_at = datetime.now(
-            timezone.utc
-        )
-
-
-
     else:
-
-        row = Candidate(
-
-            candidate_id=candidate_id,
-
-            resume_url=stored["url"],
-
-            resume_filename=stored["filename"],
-
-            **fields
-
+        # Rows written before F4 (seed data, pre-versioning uploads).
+        url = (
+            storage.resolve_url(candidate_id, row.resume_filename)
+            if row.resume_filename
+            else row.resume_url
         )
-
-
-        db.add(row)
-
-
-    db.commit()
-
-    db.refresh(row)
-
-
-
-
+        filename, version_no = row.resume_filename, 0
 
     return {
-
-        "duplicate": False,
-
-        "data":
-            _to_out(row),
-
-        "error": None
-
+        "data": {"resume_url": url, "filename": filename, "version_no": version_no},
+        "error": None,
     }
-    
-    # =========================
-# DELETE
-# =========================
+
 
 @router.delete("/candidates/{candidate_id}")
-def delete_candidate(
-
-    candidate_id: str,
-
-    db: Session = Depends(get_db)
-
-):
-
-
-    row = db.get(
-
-        Candidate,
-
-        candidate_id
-
-    )
-
-
-
-    if row is None:
-
+def delete_candidate(candidate_id: str, db: Session = Depends(get_db)):
+    """Cancel upload / delete a candidate - allowed only when the upload is not
+    in progress (upload_status in DELETABLE_UPLOAD_STATUSES). Processing -> 400."""
+    row = _get_or_404(db, candidate_id)
+    if row.upload_status not in DELETABLE_UPLOAD_STATUSES:
         raise HTTPException(
-
-            status_code=404,
-
-            detail="Candidate not found"
-
+            status_code=400, detail="Cannot cancel/delete file in current status"
         )
 
-
-
-
+    # Delete the dependent rows explicitly. SQLite does not enforce foreign keys
+    # unless PRAGMA foreign_keys is on, so leaving them would look fine today and
+    # fail with an FK violation the day we move to Postgres. A candidate deletion
+    # is also the one case where comment history is meant to go: it is how a PDPA
+    # data-deletion request cascades.
+    for model in (ResumeVersion, CommentLog, StatusHistory, CandidateChangeLog,
+                 OwnershipHistory, SqlTestScore):
+        db.query(model).filter(model.candidate_id == candidate_id).delete(
+            synchronize_session=False
+        )
     db.delete(row)
-
     db.commit()
+    storage.delete(candidate_id)  # local folder or Azure blobs - whichever is active
+
+    return {"data": {"candidate_id": candidate_id, "deleted": True}, "error": None}
 
 
+# ------------------------------------------------------------------ F4 upload
 
-    return {
 
-        "data": {
+def _find_by_email(db: Session, extracted: dict) -> Candidate | None:
+    """F4 step 1. Normalized email is the ONLY automatic match key: deterministic
+    and high confidence. Fuzzy name matching is deliberately not used - two
+    "Somchai Jaidee" records merging automatically loses one person's history
+    with no undo.
 
-            "candidate_id": candidate_id,
+    Falls back to a scan of `email` for rows written before email_normalized
+    existed, and picks the oldest match so repeated uploads stay deterministic.
+    """
+    key = normalize_email(extracted.get("email"))
+    if not key:
+        return None
 
-            "message": "Candidate deleted successfully"
-
-        },
-
-        "error": None
-
-    }
-    
-@router.delete(
-    "/candidates/comments/{comment_id}"
-)
-def delete_comment(
-
-    comment_id:int,
-
-    db:Session = Depends(get_db)
-
-):
-
-    comment = (
-        db.query(CandidateComment)
-        .filter(
-            CandidateComment.id == comment_id
-        )
+    row = (
+        db.query(Candidate)
+        .filter(Candidate.email_normalized == key)
+        .order_by(Candidate.created_at.asc(), Candidate.candidate_id.asc())
         .first()
     )
+    if row is not None:
+        return row
+
+    for legacy in db.query(Candidate).filter(Candidate.email_normalized.is_(None)).all():
+        if normalize_email(legacy.email) == key:
+            legacy.email_normalized = key  # backfill on the way past
+            return legacy
+    return None
 
 
-    if not comment:
+@router.post("/candidates/upload", status_code=201)
+async def upload_candidates(
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """Batch upload. Each .pdf/.docx file -> stored + extraction + persisted.
 
-        raise HTTPException(
-            status_code=404,
-            detail="Comment not found"
-        )
+    F4: a file whose extracted email matches an existing candidate UPDATES that
+    candidate instead of creating a second record. HR-owned fields (`status`,
+    `before_rejected_status`, `applied_position`, `location`) and the identity
+    fields (`candidate_id`, `created_at`) are preserved, and comment history
+    survives untouched because it is keyed on the preserved `candidate_id`.
 
+    Round 4 (team decision): a file with NO exact email match but a plausible
+    soft match (same phone, or same name + position) no longer guesses. It
+    stops in `needs_review[]` instead of silently becoming a new candidate -
+    resolve it via POST /api/pending-uploads/{id}/update or .../create-new.
+    Only a file with no match at all still auto-creates.
 
-    db.delete(comment)
+    Returns `{created[], updated[], needs_review[], failed[], count}`; a bad
+    file fails only its own entry. `count` = created + updated (what actually
+    landed on a candidate record). NOTE for Member 2: `updated[]` is new in
+    round 4 - HR must be able to tell "3 new candidates" from "1 added, 2
+    records overwritten", and `needs_review[]` needs its own prompt in the UI.
+    """
+    created: list[dict] = []
+    updated: list[dict] = []
+    needs_review: list[dict] = []
+    failed: list[dict] = []
 
-    db.commit()
+    for file in files:
+        name = file.filename or ""
+        ext = os.path.splitext(name)[1].lower()
 
+        # --- cheap validation first: no row is created for a rejected file ---
+        try:
+            if ext not in ALLOWED_EXTENSIONS:
+                raise ValueError(
+                    f"Unsupported file type '{ext or '?'}'. Allowed: .pdf, .docx"
+                )
+            content = await file.read()
+            if not content:
+                raise ValueError("Uploaded file is empty")
+            if len(content) > settings.max_upload_mb * 1024 * 1024:
+                raise ValueError(f"File too large (max {settings.max_upload_mb} MB)")
+        except ValueError as exc:
+            failed.append({"filename": name, "error": str(exc)})
+            continue
+
+        # --- extract BEFORE deciding create-vs-update: the email in the CV is
+        # what decides which record this file belongs to. A failure here means we
+        # never learned the email, so no existing record can have been touched.
+        try:
+            # ---------------- MOCK EXTRACTION BOUNDARY ----------------
+            # Day 6: swap the `extract_candidate` import above for Member 4's
+            # llm-service function. Frozen signature:
+            #   extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict
+            raw = extract_candidate(content, filename=name)
+            # ---------------------------------------------------------
+            fields = CandidateBase.model_validate(raw).model_dump(mode="json")
+        except Exception as exc:
+            # Keep a Failed row so HR can see the file arrived and delete/retry.
+            candidate_id = next_candidate_id(db)
+            failed_row = Candidate(
+                candidate_id=candidate_id,
+                upload_status="Failed",
+                raw_text_snippet=f"[extraction failed] {exc}"[:500],
+            )
+            db.add(failed_row)
+            assign_initial_owner(db, failed_row, account.account_id)
+            db.commit()
+            failed.append({
+                "filename": name, "candidate_id": candidate_id,
+                "error": f"Extraction failed: {exc}",
+            })
+            continue
+
+        existing = _find_by_email(db, fields)
+
+        if existing is not None:
+            # ---------------- re-upload path (exact email match) ----------------
+            # Store the file first. If storage fails the record is still exactly
+            # as it was - no half-merged candidate.
+            try:
+                stored = store_resume(db, existing.candidate_id, name, content,
+                                      account.account_id)
+            except Exception as exc:
+                db.rollback()
+                failed.append({
+                    "filename": name, "candidate_id": existing.candidate_id,
+                    "error": f"Storage failed, existing record left untouched: {exc}",
+                })
+                continue
+
+            merge_on_reupload(db, existing, fields, account.account_id)
+            for field, value in (("resume_url", stored["url"]),
+                                 ("resume_filename", stored["filename"]),
+                                 ("upload_status", "Done")):
+                old = getattr(existing, field)
+                if old != value:
+                    record_change(db, existing.candidate_id, field, old, value,
+                                  account.account_id, source="reupload")
+                setattr(existing, field, value)
+            existing.updated_at = utcnow()
+            try:
+                db.commit()
+            except IntegrityError:
+                # The new email collides with a THIRD candidate's email - rare
+                # (the CV would have to disagree with itself between uploads),
+                # but a clear 409 in `failed[]` beats an unhandled 500.
+                db.rollback()
+                failed.append({
+                    "filename": name, "candidate_id": existing.candidate_id,
+                    "error": f"Extracted email now collides with another "
+                             f"candidate's; not applied. Resolve manually.",
+                })
+                continue
+            db.refresh(existing)
+            updated.append(_to_out(existing, db))
+            continue
+
+        # No exact email match. A soft hint (phone, or name + position) means
+        # this MIGHT be a re-upload under a different/failed email extraction -
+        # stop and ask rather than guessing either way (round 4 decision).
+        hints = find_duplicate_hints(db, fields)
+        if hints:
+            # ---------------- needs-review path ----------------
+            pending = PendingUpload(
+                pending_upload_id=str(uuid.uuid4()),
+                filename=name,
+                file_bytes=content,
+                extracted_fields=fields,
+                duplicate_candidate_ids=hints,
+                uploaded_by=account.account_id,
+                created_at=utcnow(),
+            )
+            db.add(pending)
+            db.commit()
+            needs_review.append(pending_upload_preview(db, pending))
+            continue
+
+        # ---------------- new candidate path (no match, no hint at all) ----------------
+        candidate_id = next_candidate_id(db)
+        row = Candidate(candidate_id=candidate_id, upload_status="Processing")
+        db.add(row)
+        # Ownership is set at creation, before the try/except below - even a
+        # row that ends up "Failed" (storage error) is still owned by whoever
+        # attempted the import, and a rollback inside the try block must not
+        # be able to erase that.
+        assign_initial_owner(db, row, account.account_id)
+        db.commit()
+
+        try:
+            stored = store_resume(db, candidate_id, name, content, account.account_id)
+
+            for key, value in fields.items():
+                setattr(row, key, value)
+            row.email_normalized = normalize_email(row.email)
+            row.possible_duplicate_of = []  # no hint - see the branch above
+            row.resume_url = stored["url"]
+            row.resume_filename = stored["filename"]
+            row.upload_status = "Done"
+            row.updated_at = utcnow()
+            db.add(StatusHistory(
+                history_id=str(uuid.uuid4()),
+                candidate_id=candidate_id,
+                from_status=None,
+                to_status=row.status,
+                changed_by=account.account_id,
+                changed_at=utcnow(),
+                reason="created by upload",
+            ))
+            db.commit()
+            db.refresh(row)
+            created.append(_to_out(row, db))
+        except Exception as exc:  # storage failure - keep the row as Failed
+            db.rollback()
+            row = db.get(Candidate, candidate_id)
+            if row is not None:
+                row.upload_status = "Failed"
+                row.raw_text_snippet = f"[upload failed] {exc}"[:500]
+                db.commit()
+            failed.append(
+                {"filename": name, "candidate_id": candidate_id,
+                 "error": f"Processing failed: {exc}"}
+            )
+
+    if not created and not updated and not needs_review and failed:
+        # nothing succeeded and nothing is pending review -> surface as a 400
+        # with the collected errors
+        raise HTTPException(status_code=400, detail=failed[0]["error"])
 
     return {
-        "message":"Comment deleted"
+        "data": {
+            "created": created,
+            "updated": updated,
+            "needs_review": needs_review,
+            "failed": failed,
+            "count": len(created) + len(updated),
+        },
+        "error": None,
     }

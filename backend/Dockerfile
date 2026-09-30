@@ -1,10 +1,34 @@
-FROM python:3.11-slim
+
+# Pinned to bookworm (Debian 12), not the floating `python:3.11-slim` (which
+# now resolves to trixie/Debian 13) - Microsoft's ODBC apt repo below is
+# published per-Debian-version as .../debian/12/..., and trixie's newer apt
+# (sqv) rejects that repo's signature under a stricter SHA1 policy that
+# bookworm's apt doesn't enforce. Matching the repo's own target release
+# avoids the mismatch instead of weakening any signature check.
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
+# Microsoft ODBC Driver 18 for SQL Server - needed by pyodbc for the Azure SQL
+# Database (free tier) DATABASE_URL. curl/gnupg only exist to fetch and verify
+# Microsoft's apt repo; ACCEPT_EULA=Y is required non-interactively by the
+# package itself, not something we're skipping past.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl gnupg \
+    && curl -sSL -O https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb \
+    && rm packages-microsoft-prod.deb \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc-dev \
+    && apt-get purge -y --auto-remove curl gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Build context is the repo root (see docker-compose.yml), so paths are backend/*
 COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# python:3.11-slim ships pip 24.0, which crashes resolving the PyPI JSON simple
+# API (Link.from_json UnboundLocalError). Upgrade before installing.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 

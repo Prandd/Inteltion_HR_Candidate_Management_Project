@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inteltion.local/contracts/hr-account.schema.json",
+  "title": "HRAccount",
+  "version": "1.0.0",
+  "description": "One HR login. NEW in round 4 - replaces the single hardcoded admin/password123 account read from .env. There is no `password` or `password_hash` property anywhere in this schema on purpose: the backend model does not declare the field, so it cannot leak through a careless serialisation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["account_id", "username", "email", "full_name", "role", "is_active", "created_at", "updated_at"],
+  "properties": {
+    "account_id": { "type": "string", "description": "UUID. Read-only. This is what comment_logs, status_history and resume_versions reference." },
+    "username": { "type": "string", "minLength": 3, "description": "Login handle. Unique. Not editable after creation - history is attributed by account_id anyway." },
+    "email": { "type": "string", "description": "Unique." },
+    "full_name": { "type": "string", "minLength": 1, "description": "Displayed as the comment author and snapshotted into every comment at write time." },
+    "role": {
+      "type": "string",
+      "enum": ["admin", "hr", "line_manager", "viewer"],
+      "description": "Drives the default comment_type and gates the account-management endpoints. 'admin' only for /api/hr-accounts/*."
+    },
+    "is_active": {
+      "type": "boolean",
+      "description": "Accounts are DEACTIVATED, never deleted - a hard delete would orphan or cascade away comment history. A deactivated account is rejected at the NEXT request, not when its token expires."
+    },
+    "last_login_at": { "type": ["string", "null"], "description": "ISO 8601, or null if the account has never logged in." },
+    "created_at": { "type": "string", "description": "ISO 8601. Read-only." },
+    "updated_at": { "type": "string", "description": "ISO 8601. Read-only." }
+  },
+  "$defs": {
+    "loginResponse": {
+      "title": "LoginResponse",
+      "description": "`data` of POST /api/auth/login. BREAKING in round 4: `account` is new. Store it - the frontend needs account_id to decide which comments the current user may edit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["access_token", "token_type", "account"],
+      "properties": {
+        "access_token": { "type": "string", "description": "JWT, valid 8 hours. Payload: {sub: account_id, username, name, role, iat, exp}." },
+        "token_type": { "type": "string", "const": "bearer" },
+        "account": { "$ref": "#/$defs/accountInfo" }
+      }
+    },
+    "accountInfo": {
+      "title": "AccountInfo",
+      "description": "Also the exact shape of `data` from GET /api/auth/me.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account_id", "username", "email", "full_name", "role", "is_active"],
+      "properties": {
+        "account_id": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "full_name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "hr", "line_manager", "viewer"] },
+        "is_active": { "type": "boolean" }
+      }
+    },
+    "endpoints": {
+      "description": "Not part of the payload - a summary of the API for Lanes A and B.",
+      "POST /api/auth/login": "Public. {username, password} -> loginResponse. 401 with an identical message for unknown user, wrong password and deactivated account. 429 after 5 failures for one username within 15 minutes (Retry-After header).",
+      "GET /api/auth/me": "Any logged-in account -> accountInfo. Call it before rendering comment edit/delete controls.",
+      "POST /api/auth/change-password": "Self. {old_password, new_password}. Minimum length 8.",
+      "GET /api/hr-accounts": "Admin. Optional ?is_active=true|false.",
+      "POST /api/hr-accounts": "Admin. {username, email, full_name, password, role} -> 201. 409 on a duplicate username or email.",
+      "PUT /api/hr-accounts/{account_id}": "Admin. {email?, full_name?, role?, is_active?}.",
+      "DELETE /api/hr-accounts/{account_id}": "Admin. SOFT delete - sets is_active=false. Refuses on your own account and on the last active admin.",
+      "POST /api/hr-accounts/{account_id}/reset-password": "Admin. {new_password} - a temporary password the holder should change immediately."
+    }
+  }
+}

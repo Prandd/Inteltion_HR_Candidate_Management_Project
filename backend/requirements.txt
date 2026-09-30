@@ -1,8 +1,17 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
+alembic==1.14.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 python-multipart==0.0.20
+pyjwt==2.10.1
+passlib==1.7.4
+# Pinned to 4.0.x on purpose: passlib 1.7.4 reads bcrypt.__about__, which
+# bcrypt 4.1 removed. It still hashes correctly on 4.1+, but every call logs a
+# spurious "error reading bcrypt version" traceback.
+bcrypt==4.0.1
+azure-storage-blob==12.23.1
 pytest==8.3.4
 httpx==0.28.1
+pyodbc==5.2.0
