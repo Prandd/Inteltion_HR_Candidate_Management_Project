@@ -26,6 +26,7 @@ from ..database import get_db
 from ..models_db import Candidate, HRAccount, PendingUpload, StatusHistory, utcnow
 from ..schemas import PendingUploadResolved
 from ..services import (
+    assign_initial_owner,
     candidate_out,
     merge_on_reupload,
     next_candidate_id,
@@ -95,7 +96,9 @@ def resolve_as_update(
     """"This CV belongs to somebody we already have." Applies the same merge
     policy as a normal re-upload: extraction-owned fields are overwritten,
     HR-owned fields (`status`, `applied_position`, `location`,
-    `before_rejected_status`) and comment history are left alone."""
+    `before_rejected_status`) and comment history are left alone. Ownership is
+    left alone too (round 5) - the candidate already has an owner, and merging
+    a re-upload into them does not change who brought them in."""
     pending = _open_or_404(db, pending_upload_id)
 
     target = pick_newest_duplicate(db, pending.duplicate_candidate_ids)
@@ -150,7 +153,15 @@ def resolve_as_create_new(
 ):
     """"It really is a different person." Creates the candidate the upload
     would have created if it had not stopped to ask, and keeps the hint that
-    made it stop in `possible_duplicate_of` so the near-match stays visible."""
+    made it stop in `possible_duplicate_of` so the near-match stays visible.
+
+    Owner is the file's ORIGINAL uploader (`pending.uploaded_by`), not
+    whichever account resolves the queue item later (round 5) - "whoever
+    imports the CV owns it" means the import that actually happened, which was
+    the original upload. If a different account clicks "create new" days
+    later, that account can be given ownership afterwards through the
+    transfer endpoint, same as any other reassignment.
+    """
     pending = _open_or_404(db, pending_upload_id)
 
     candidate_id = next_candidate_id(db)
@@ -181,6 +192,7 @@ def resolve_as_create_new(
             changed_at=utcnow(),
             reason="created by upload (duplicate hint reviewed and overridden)",
         ))
+        assign_initial_owner(db, row, pending.uploaded_by)
 
         pending.resolved_at = utcnow()
         pending.resolution = "created_new"

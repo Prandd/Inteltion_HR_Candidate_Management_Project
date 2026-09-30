@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inteltion.local/contracts/ownership.schema.json",
+  "title": "OwnershipHistory",
+  "version": "1.0.0",
+  "description": "One assignment or transfer of a candidate's ownership. NEW in round 5. Rule: whoever imports a CV owns it (`owner_account_id` on the candidate, set once at creation). Re-uploading a CV and resolving a pending-upload as 'update' never change it - only POST /api/candidates/{id}/transfer-ownership does, and only for the current owner or an admin. The very first row for a candidate (written at creation) has from_owner_account_id = null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ownership_history_id", "candidate_id", "to_owner_account_id", "changed_by", "changed_at", "reason"],
+  "properties": {
+    "ownership_history_id": { "type": "string", "description": "UUID." },
+    "candidate_id": { "type": "string", "pattern": "^[0-9]{7}$" },
+    "from_owner_account_id": {
+      "type": ["string", "null"],
+      "description": "null on the very first (creation) row for a candidate. Otherwise the owner being moved away from."
+    },
+    "to_owner_account_id": { "type": "string", "description": "The new owner." },
+    "changed_by": {
+      "type": "string",
+      "description": "Who performed this transfer - the outgoing owner, or an admin overriding it. Can differ from from_owner_account_id when an admin does the moving."
+    },
+    "changed_at": { "type": "string", "description": "ISO 8601." },
+    "reason": { "type": "string", "description": "Optional free text, e.g. 'going on leave'. '' if not given." }
+  },
+  "$defs": {
+    "transferRequest": {
+      "title": "TransferOwnershipRequest",
+      "description": "Body for POST /api/candidates/{id}/transfer-ownership.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["new_owner_account_id"],
+      "properties": {
+        "new_owner_account_id": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "endpoints": {
+      "description": "Not part of the payload - a summary of the API.",
+      "POST /api/candidates/{id}/transfer-ownership": "Body: transferRequest. Allowed callers: the candidate's CURRENT owner, or any `admin` (override). Anyone else -> 403, including the account being made the new owner (a transfer is done TO an account, never something an account does to itself). 404 if new_owner_account_id does not exist, 400 if it is deactivated or is already the current owner. Returns the full updated Candidate.",
+      "GET /api/candidates/{id}/ownership-history": "Any logged-in account. Every assignment/transfer for the candidate, newest first."
+    }
+  }
+}

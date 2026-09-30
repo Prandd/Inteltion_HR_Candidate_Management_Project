@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import SessionLocal
-from .models_db import Candidate, CommentLog, HRAccount, StatusHistory, utcnow
+from .models_db import Candidate, CommentLog, HRAccount, OwnershipHistory, StatusHistory, utcnow
 from .schemas import CandidateBase
 from .security import hash_password
 from .services import normalize_email
@@ -115,6 +115,9 @@ def seed_candidates_if_empty(db: Session, author: HRAccount) -> None:
             resume_url=item.get("resume_url", ""),
             resume_filename=item.get("resume_filename", ""),
             before_rejected_status=item.get("before_rejected_status", ""),
+            # Round 5 - seeded rows are attributed to the seed admin, same as
+            # the status/comment backfills below.
+            owner_account_id=author.account_id,
             # Legacy columns: written once here so _backfill_comments() can turn
             # them into comment_logs rows. The API never writes them again.
             hr_comment=item.get("hr_comment", ""),
@@ -127,6 +130,15 @@ def seed_candidates_if_empty(db: Session, author: HRAccount) -> None:
             candidate_id=candidate_id,
             from_status=None,
             to_status=fields.get("status", "New"),
+            changed_by=author.account_id,
+            changed_at=now,
+            reason="seeded",
+        ))
+        db.add(OwnershipHistory(
+            ownership_history_id=str(uuid.uuid4()),
+            candidate_id=candidate_id,
+            from_owner_account_id=None,
+            to_owner_account_id=author.account_id,
             changed_by=author.account_id,
             changed_at=now,
             reason="seeded",

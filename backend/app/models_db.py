@@ -72,6 +72,18 @@ class Candidate(Base):
     # F4 - candidate_ids this row *might* duplicate, when no email match was
     # possible. Read-only hint for HR; the backend never auto-merges on it.
     possible_duplicate_of = Column(JSON, nullable=False, default=list)
+    # Round 5 - whoever imported this CV owns it. Set once at creation (the
+    # uploader for a fresh candidate, or the original uploader for a pending
+    # upload resolved as "create new" - see routers/pending_uploads.py) and
+    # left untouched by every re-upload/merge path after that: ownership is a
+    # fact about who brought the candidate in, not about who most recently
+    # touched the record. Changed only via the dedicated transfer endpoint,
+    # which writes an ownership_history row. Nullable only for rows migrated
+    # in before this column existed and that could not be backfilled (no
+    # status_history row to attribute to) - see migration 0005.
+    owner_account_id = Column(
+        String, ForeignKey("hr_accounts.account_id"), nullable=True
+    )
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = Column(
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
@@ -213,6 +225,63 @@ class PendingUpload(Base):
     resolved_at = Column(DateTime(timezone=True), nullable=True)  # NULL = still open
     resolution = Column(String, nullable=True)  # 'updated' | 'created_new' | 'discarded'
     resolved_candidate_id = Column(String, nullable=True)
+
+
+class OwnershipHistory(Base):
+    """Round 5 - every ownership assignment and transfer, in order.
+
+    The very first row for a candidate (written at creation, alongside the
+    StatusHistory "created by upload" row) has `from_owner_account_id = NULL`
+    and records who originally imported the CV. Every later row is a transfer:
+    `changed_by` is whoever performed the transfer (the outgoing owner, or an
+    admin overriding it - see the round-5 decision in CHANGELOG.md), which can
+    differ from `from_owner_account_id` when an admin does the moving.
+    """
+
+    __tablename__ = "ownership_history"
+
+    ownership_history_id = Column(String, primary_key=True)  # uuid4
+    candidate_id = Column(
+        String, ForeignKey("candidates.candidate_id"), nullable=False, index=True
+    )
+    from_owner_account_id = Column(
+        String, ForeignKey("hr_accounts.account_id"), nullable=True
+    )
+    to_owner_account_id = Column(
+        String, ForeignKey("hr_accounts.account_id"), nullable=False
+    )
+    changed_by = Column(String, ForeignKey("hr_accounts.account_id"), nullable=False)
+    changed_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    reason = Column(Text, nullable=False, default="")
+
+
+class SqlTestScore(Base):
+    """Round 5 - a score reported by the external SQL-test tool for a candidate.
+
+    The tool's own request/response contract is not confirmed yet (round-5
+    kickoff note: "ระบบ/เครื่องมือภายนอกแยกออกมา" - a separate external system,
+    no shape agreed). `raw_payload` keeps whatever it actually sent verbatim,
+    so nothing is lost if today's guess at the shape (a plain numeric `score`)
+    turns out to be wrong once the real contract is known - the stored row can
+    be re-interpreted without a migration. `score` itself stays a plain float
+    rather than jamming a full rubric into a column now.
+    """
+
+    __tablename__ = "sql_test_scores"
+
+    score_id = Column(String, primary_key=True)  # uuid4
+    candidate_id = Column(
+        String, ForeignKey("candidates.candidate_id"), nullable=False, index=True
+    )
+    score = Column(Float, nullable=False)
+    source = Column(String, nullable=False, default="sql_test")
+    raw_payload = Column(JSON, nullable=True)
+    recorded_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    # Nullable: a machine-to-machine call from the external tool may not carry
+    # an HR account at all once that integration is real (see the open question
+    # in CHANGELOG.md about its auth). Whichever HR account was logged in when
+    # the call was made, if any.
+    recorded_by = Column(String, ForeignKey("hr_accounts.account_id"), nullable=True)
 
 
 class CandidateChangeLog(Base):

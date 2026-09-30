@@ -16,8 +16,11 @@ from .models_db import (
     Candidate,
     CandidateChangeLog,
     CommentLog,
+    HRAccount,
+    OwnershipHistory,
     PendingUpload,
     ResumeVersion,
+    SqlTestScore,
     StatusHistory,
     utcnow,
 )
@@ -298,6 +301,78 @@ def next_candidate_id(db: Session) -> str:
     return f"{(max(nums) + 1) if nums else 1:07d}"
 
 
+def owner_name_for(db: Session, owner_account_id: str | None) -> str:
+    """Live lookup, not a snapshot - if the owner is later renamed, every
+    candidate they own should show the new name immediately. Empty string for
+    no owner or a since-deleted account, matching the NULL RULE."""
+    if not owner_account_id:
+        return ""
+    account = db.get(HRAccount, owner_account_id)
+    if account is None:
+        return ""
+    return account.full_name or account.username
+
+
+def owner_names_for(db: Session, owner_account_ids: list[str]) -> dict[str, str]:
+    """Batch form of owner_name_for(), for list endpoints - one query instead of
+    one per row."""
+    ids = {i for i in owner_account_ids if i}
+    if not ids:
+        return {}
+    rows = db.query(HRAccount).filter(HRAccount.account_id.in_(ids)).all()
+    return {a.account_id: (a.full_name or a.username) for a in rows}
+
+
+def record_ownership_change(
+    db: Session,
+    candidate_id: str,
+    from_owner_account_id: str | None,
+    to_owner_account_id: str,
+    changed_by: str,
+    reason: str = "",
+) -> None:
+    """One row per assignment/transfer. The very first call for a candidate (at
+    creation) passes `from_owner_account_id=None`. Added to the session, NOT
+    committed - the caller commits it in the same transaction as the change."""
+    db.add(OwnershipHistory(
+        ownership_history_id=str(uuid.uuid4()),
+        candidate_id=candidate_id,
+        from_owner_account_id=from_owner_account_id,
+        to_owner_account_id=to_owner_account_id,
+        changed_by=changed_by,
+        changed_at=utcnow(),
+        reason=reason or "",
+    ))
+
+
+def assign_initial_owner(db: Session, candidate: Candidate, owner_account_id: str) -> None:
+    """Round 5 - "whoever imports a CV owns it." Called once, at the moment a
+    candidate row is created (a fresh upload, or a pending-upload resolved as
+    create-new). Re-upload and the pending-upload 'update' resolution do NOT
+    call this - ownership is a fact about who brought the candidate in, not
+    about who most recently touched the record (round-5 decision)."""
+    candidate.owner_account_id = owner_account_id
+    record_ownership_change(db, candidate.candidate_id, None, owner_account_id,
+                            changed_by=owner_account_id, reason="created by upload")
+
+
+def transfer_ownership(
+    db: Session,
+    candidate: Candidate,
+    new_owner_account_id: str,
+    changed_by: str,
+    reason: str = "",
+) -> None:
+    """Round 5 - move ownership to someone else. Caller (router) has already
+    checked that `changed_by` is allowed to do this (the current owner, or an
+    admin) and that `new_owner_account_id` is a real, active account."""
+    old_owner = candidate.owner_account_id
+    candidate.owner_account_id = new_owner_account_id
+    candidate.updated_at = utcnow()
+    record_ownership_change(db, candidate.candidate_id, old_owner,
+                            new_owner_account_id, changed_by, reason=reason)
+
+
 def candidate_out(db: Session, row: Candidate) -> dict:
     """Full candidate payload, everywhere a candidate is serialised. The two
     deprecated comment fields are computed from comment_logs here (F3 phase 1)
@@ -309,7 +384,31 @@ def candidate_out(db: Session, row: Candidate) -> dict:
 
     payload = CandidateOut.model_validate(row).model_dump(mode="json")
     payload.update(latest_comment_texts(db, row.candidate_id))
+    payload["owner_name"] = owner_name_for(db, row.owner_account_id)
     return payload
+
+
+def record_sql_test_score(
+    db: Session,
+    candidate_id: str,
+    score: float,
+    source: str,
+    raw_payload: dict | None,
+    recorded_by: str | None,
+) -> SqlTestScore:
+    """Store one score row verbatim (plus the raw payload) from the external
+    SQL-test tool. Not committed - the caller commits."""
+    row = SqlTestScore(
+        score_id=str(uuid.uuid4()),
+        candidate_id=candidate_id,
+        score=score,
+        source=source,
+        raw_payload=raw_payload,
+        recorded_at=utcnow(),
+        recorded_by=recorded_by,
+    )
+    db.add(row)
+    return row
 
 
 _PENDING_PREVIEW_FIELDS = (

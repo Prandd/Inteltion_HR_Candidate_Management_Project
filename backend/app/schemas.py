@@ -311,6 +311,13 @@ class CandidateOut(CandidateBase):
     # F4. Read-only hint - candidate_ids this row might duplicate. Never merged
     # automatically; HR decides.
     possible_duplicate_of: list[str] = Field(default_factory=list)
+    # Round 5. Read-only here - set at creation, changed only via
+    # POST /api/candidates/{id}/transfer-ownership. "" for the rare row that
+    # could not be backfilled a real owner (see migration 0005).
+    owner_account_id: str = ""
+    # Live lookup, not a snapshot (unlike comment author_name) - ownership is a
+    # current assignment, so showing a renamed owner's new name is correct here.
+    owner_name: str = ""
     # DEPRECATED (F3 phase 1) - the text of the newest live comment of each
     # type, computed at read time. Writes are ignored. Removed in phase 2; read
     # GET /api/candidates/{id}/comments instead.
@@ -331,6 +338,11 @@ class CandidateOut(CandidateBase):
     def _no_null_list(cls, v):
         return v or []
 
+    @field_validator("owner_account_id", mode="before")
+    @classmethod
+    def _no_null_owner(cls, v):
+        return v or ""
+
 
 class CandidateSummary(BaseModel):
     """Trimmed shape for GET /api/candidates (list view)."""
@@ -350,6 +362,8 @@ class CandidateSummary(BaseModel):
     top_skills: list[str] = Field(default_factory=list)
     extraction_confidence: float
     created_at: datetime
+    owner_account_id: str = ""
+    owner_name: str = ""
 
 
 # -------------------------------------------------- pending uploads (F4, round 4)
@@ -435,3 +449,64 @@ class StatusChangeRequest(BaseModel):
     """Optional body for POST /api/candidates/{id}/restore."""
 
     reason: str = ""
+
+
+# --------------------------------------------------------------- ownership (round 5)
+
+
+class TransferOwnershipRequest(BaseModel):
+    """Body for POST /api/candidates/{id}/transfer-ownership.
+
+    `new_owner_account_id` must belong to an active HR account. Who is allowed
+    to call this at all (the current owner, or an admin) is enforced server-side
+    in the router, per the round-5 decision - not by which fields this body
+    happens to declare.
+    """
+
+    new_owner_account_id: str
+    reason: str = ""
+
+
+class OwnershipHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    ownership_history_id: str
+    candidate_id: str
+    from_owner_account_id: str | None = None
+    to_owner_account_id: str
+    changed_by: str
+    changed_at: datetime
+    reason: str = ""
+
+
+# ---------------------------------------------------- sql test score (round 5)
+#
+# The external tool's own contract is not confirmed yet - see the model
+# docstring in models_db.py. `score` is required and validated; everything
+# else the caller sends is kept verbatim in `raw_payload` rather than
+# discarded, so today's guess at the shape does not lose data if it is wrong.
+
+
+class SqlTestScoreIn(BaseModel):
+    score: float
+    source: str = "sql_test"
+    raw_payload: dict | None = None
+
+    @field_validator("score")
+    @classmethod
+    def _finite(cls, v: float) -> float:
+        if v != v or v in (float("inf"), float("-inf")):  # NaN / inf
+            raise ValueError("score must be a finite number")
+        return v
+
+
+class SqlTestScoreOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    score_id: str
+    candidate_id: str
+    score: float
+    source: str
+    raw_payload: dict | None = None
+    recorded_at: datetime
+    recorded_by: str | None = None

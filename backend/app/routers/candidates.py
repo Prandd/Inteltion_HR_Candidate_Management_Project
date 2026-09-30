@@ -15,8 +15,10 @@ from ..models_db import (
     CandidateChangeLog,
     CommentLog,
     HRAccount,
+    OwnershipHistory,
     PendingUpload,
     ResumeVersion,
+    SqlTestScore,
     StatusHistory,
     utcnow,
 )
@@ -28,20 +30,28 @@ from ..schemas import (
     CandidateSummary,
     CandidateUpdate,
     ChangeLogOut,
+    OwnershipHistoryOut,
     ResumeVersionOut,
+    SqlTestScoreIn,
+    SqlTestScoreOut,
     StatusChangeRequest,
     StatusHistoryOut,
+    TransferOwnershipRequest,
 )
 from ..services import (
     apply_status_change,
+    assign_initial_owner,
     candidate_out,
     find_duplicate_hints,
     merge_on_reupload,
     next_candidate_id,
     normalize_email,
+    owner_names_for,
     pending_upload_preview,
     record_change,
+    record_sql_test_score,
     store_resume,
+    transfer_ownership,
 )
 from ..statuses import REJECTED_STATES
 from ..storage import storage
@@ -59,7 +69,8 @@ def _to_out(row: Candidate, db: Session) -> dict:
     return candidate_out(db, row)
 
 
-def _to_summary(row: Candidate) -> dict:
+def _to_summary(row: Candidate, owner_names: dict[str, str] | None = None) -> dict:
+    owner_names = owner_names or {}
     return CandidateSummary(
         candidate_id=row.candidate_id,
         full_name=row.full_name,
@@ -74,6 +85,8 @@ def _to_summary(row: Candidate) -> dict:
         top_skills=[s.get("skill", "") for s in (row.skills or [])][:5],
         extraction_confidence=row.extraction_confidence,
         created_at=row.created_at,
+        owner_account_id=row.owner_account_id or "",
+        owner_name=owner_names.get(row.owner_account_id or "", ""),
     ).model_dump(mode="json")
 
 
@@ -102,6 +115,10 @@ def list_candidates(
     min_experience: float | None = Query(None, description="experience_total >= this"),
     max_experience: float | None = Query(None, description="experience_total <= this"),
     q: str | None = Query(None, description="keyword: full_name, email, skills, candidate_id"),
+    owner_account_id: str | None = Query(
+        None, description="exact match on owner - pass the caller's own account_id "
+                          "for a 'my candidates' filter"
+    ),
 ):
     query = db.query(Candidate)
     if status:
@@ -112,6 +129,8 @@ def list_candidates(
         query = query.filter(Candidate.experience_total >= min_experience)
     if max_experience is not None:
         query = query.filter(Candidate.experience_total <= max_experience)
+    if owner_account_id:
+        query = query.filter(Candidate.owner_account_id == owner_account_id)
 
     rows = query.order_by(Candidate.created_at.desc()).all()
 
@@ -119,7 +138,8 @@ def list_candidates(
         needle = q.strip().lower()
         rows = [r for r in rows if _matches_keyword(r, needle)]
 
-    return {"data": [_to_summary(r) for r in rows], "error": None}
+    owner_names = owner_names_for(db, [r.owner_account_id for r in rows])
+    return {"data": [_to_summary(r, owner_names) for r in rows], "error": None}
 
 
 @router.get("/candidates/{candidate_id}")
@@ -201,6 +221,107 @@ def restore_candidate(
     db.commit()
     db.refresh(row)
     return {"data": _to_out(row, db), "error": None}
+
+
+@router.post("/candidates/{candidate_id}/transfer-ownership")
+def transfer_candidate_ownership(
+    candidate_id: str,
+    payload: TransferOwnershipRequest,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """Round 5 - "Owner changes owner to give to another user, only their own."
+    Allowed callers: the CURRENT owner (transferring their own candidate away),
+    or any `admin` (override). Anyone else -> 403, even if they are the new
+    owner-to-be - a transfer is something done TO an account, never something
+    an account does to grant itself ownership."""
+    row = _get_or_404(db, candidate_id)
+
+    if account.account_id != row.owner_account_id and account.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only the current owner or an admin can transfer ownership",
+        )
+
+    new_owner = db.get(HRAccount, payload.new_owner_account_id)
+    if new_owner is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"HR account '{payload.new_owner_account_id}' not found",
+        )
+    if not new_owner.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail=f"HR account '{payload.new_owner_account_id}' is deactivated",
+        )
+    if new_owner.account_id == row.owner_account_id:
+        raise HTTPException(
+            status_code=400, detail="That account already owns this candidate"
+        )
+
+    transfer_ownership(db, row, new_owner.account_id, account.account_id,
+                       reason=payload.reason)
+    db.commit()
+    db.refresh(row)
+    return {"data": _to_out(row, db), "error": None}
+
+
+@router.get("/candidates/{candidate_id}/ownership-history")
+def get_ownership_history(candidate_id: str, db: Session = Depends(get_db)):
+    _get_or_404(db, candidate_id)
+    rows = (
+        db.query(OwnershipHistory)
+        .filter(OwnershipHistory.candidate_id == candidate_id)
+        .order_by(OwnershipHistory.changed_at.desc())
+        .all()
+    )
+    return {
+        "data": [OwnershipHistoryOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "error": None,
+    }
+
+
+@router.post("/candidates/{candidate_id}/sql-test-score", status_code=201)
+def add_sql_test_score(
+    candidate_id: str,
+    payload: SqlTestScoreIn,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """Round 5 - record a score from the external SQL-test tool.
+
+    NOTE: this tool's real request contract is not confirmed yet (round-5
+    kickoff: "ระบบ/เครื่องมือภายนอกแยกออกมา"). Today this accepts a plain
+    `{score, source?, raw_payload?}` body under the same HR-account auth as
+    every other endpoint; `raw_payload` keeps whatever else the caller sent so
+    nothing is lost once the real shape is known. If that tool turns out to be
+    a service calling in on its own (not a logged-in HR user), this endpoint's
+    auth will need a service-credential path added alongside the existing one,
+    not instead of it.
+    """
+    _get_or_404(db, candidate_id)
+    row = record_sql_test_score(
+        db, candidate_id, payload.score, payload.source, payload.raw_payload,
+        recorded_by=account.account_id,
+    )
+    db.commit()
+    db.refresh(row)
+    return {"data": SqlTestScoreOut.model_validate(row).model_dump(mode="json"), "error": None}
+
+
+@router.get("/candidates/{candidate_id}/sql-test-scores")
+def list_sql_test_scores(candidate_id: str, db: Session = Depends(get_db)):
+    _get_or_404(db, candidate_id)
+    rows = (
+        db.query(SqlTestScore)
+        .filter(SqlTestScore.candidate_id == candidate_id)
+        .order_by(SqlTestScore.recorded_at.desc())
+        .all()
+    )
+    return {
+        "data": [SqlTestScoreOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "error": None,
+    }
 
 
 @router.get("/candidates/{candidate_id}/status-history")
@@ -306,7 +427,8 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db)):
     # fail with an FK violation the day we move to Postgres. A candidate deletion
     # is also the one case where comment history is meant to go: it is how a PDPA
     # data-deletion request cascades.
-    for model in (ResumeVersion, CommentLog, StatusHistory, CandidateChangeLog):
+    for model in (ResumeVersion, CommentLog, StatusHistory, CandidateChangeLog,
+                 OwnershipHistory, SqlTestScore):
         db.query(model).filter(model.candidate_id == candidate_id).delete(
             synchronize_session=False
         )
@@ -413,11 +535,13 @@ async def upload_candidates(
         except Exception as exc:
             # Keep a Failed row so HR can see the file arrived and delete/retry.
             candidate_id = next_candidate_id(db)
-            db.add(Candidate(
+            failed_row = Candidate(
                 candidate_id=candidate_id,
                 upload_status="Failed",
                 raw_text_snippet=f"[extraction failed] {exc}"[:500],
-            ))
+            )
+            db.add(failed_row)
+            assign_initial_owner(db, failed_row, account.account_id)
             db.commit()
             failed.append({
                 "filename": name, "candidate_id": candidate_id,
@@ -493,6 +617,11 @@ async def upload_candidates(
         candidate_id = next_candidate_id(db)
         row = Candidate(candidate_id=candidate_id, upload_status="Processing")
         db.add(row)
+        # Ownership is set at creation, before the try/except below - even a
+        # row that ends up "Failed" (storage error) is still owned by whoever
+        # attempted the import, and a rollback inside the try block must not
+        # be able to erase that.
+        assign_initial_owner(db, row, account.account_id)
         db.commit()
 
         try:

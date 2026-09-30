@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://inteltion.local/contracts/candidate.schema.json",
   "title": "Candidate",
-  "version": "2.2.0",
-  "description": "FROZEN CONTRACT for the Inteltion HR MVP. Every API 'data' payload for a single candidate matches this shape exactly. NULL RULE: there are no nulls anywhere - a missing string is \"\", a missing number is 0, a missing array is []. Every property is always present. Mirrored in code as backend/app/schemas.py (Pydantic) and shared-contracts/status.ts (TypeScript). ROUND 4 (v2.0.0, 18 Sep 2026): adds `before_rejected_status` and `possible_duplicate_of`; DEPRECATES `hr_comment` / `line_manager_comment` - both are now read-only and computed, and comments live in comment-log-schema.json. v2.1.0 (19 Sep 2026): BREAKING - the status 'CV rejected' is renamed 'Rejected'. Every frontend literal and every stored row must be updated; backend/alembic/versions/0002_rename_cv_rejected.py migrates existing databases. v2.2.0 (19 Sep 2026): BREAKING - the upload response gains `needs_review[]`. A CV that soft-matches an existing candidate no longer auto-creates; it waits for a human create-or-update decision. See pending-upload-schema.json.",
+  "version": "2.3.0",
+  "description": "FROZEN CONTRACT for the Inteltion HR MVP. Every API 'data' payload for a single candidate matches this shape exactly. NULL RULE: there are no nulls anywhere - a missing string is \"\", a missing number is 0, a missing array is []. Every property is always present. Mirrored in code as backend/app/schemas.py (Pydantic) and shared-contracts/status.ts (TypeScript). ROUND 4 (v2.0.0, 18 Sep 2026): adds `before_rejected_status` and `possible_duplicate_of`; DEPRECATES `hr_comment` / `line_manager_comment` - both are now read-only and computed, and comments live in comment-log-schema.json. v2.1.0 (19 Sep 2026): BREAKING - the status 'CV rejected' is renamed 'Rejected'. Every frontend literal and every stored row must be updated; backend/alembic/versions/0002_rename_cv_rejected.py migrates existing databases. v2.2.0 (19 Sep 2026): BREAKING - the upload response gains `needs_review[]`. A CV that soft-matches an existing candidate no longer auto-creates; it waits for a human create-or-update decision. See pending-upload-schema.json. v2.3.0 (round 5, 30 Sep 2026): additive - adds `owner_account_id` and `owner_name` (candidate ownership; see ownership-schema.json). Not breaking on its own, but note: the round-4 `feature/backend` <-> `main` contract gap (see FRONTEND_CONTRACT_GAPS.md) is still unresolved - this round adds to that same divergence rather than narrowing it.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -30,6 +30,8 @@
     "resume_url",
     "resume_filename",
     "possible_duplicate_of",
+    "owner_account_id",
+    "owner_name",
     "created_at",
     "updated_at"
   ],
@@ -140,6 +142,14 @@
       "items": { "type": "string" },
       "description": "Read-only. candidate_ids this record MIGHT duplicate, from an exact phone match or full_name + applied_position, computed at upload time when no email match was possible. [] most of the time. The backend never auto-merges on this - HR decides, because a false merge loses a person's history with no undo."
     },
+    "owner_account_id": {
+      "type": "string",
+      "description": "Round 5. Read-only here - set once, to whoever imported the CV, at creation. Re-uploads and the pending-upload 'update' resolution never change it. Changed only via POST /api/candidates/{id}/transfer-ownership (the current owner, or an admin). '' for the rare row that could not be attributed to any account. See ownership-schema.json."
+    },
+    "owner_name": {
+      "type": "string",
+      "description": "Round 5. Read-only. Live lookup of owner_account_id's current full_name, NOT a snapshot - unlike comment author_name, a renamed owner's new name shows immediately. '' when owner_account_id is ''."
+    },
     "created_at": { "type": "string", "description": "ISO 8601. Read-only, server-generated." },
     "updated_at": { "type": "string", "description": "ISO 8601. Read-only, server-generated." }
   },
@@ -162,7 +172,9 @@
         "upload_status",
         "top_skills",
         "extraction_confidence",
-        "created_at"
+        "created_at",
+        "owner_account_id",
+        "owner_name"
       ],
       "properties": {
         "candidate_id": { "type": "string" },
@@ -181,7 +193,9 @@
           "description": "Up to 5 skill names, flattened from skills[].skill."
         },
         "extraction_confidence": { "type": "number" },
-        "created_at": { "type": "string" }
+        "created_at": { "type": "string" },
+        "owner_account_id": { "type": "string", "description": "Round 5. See the top-level field. Pass this value back as ?owner_account_id= on GET /api/candidates for a 'my candidates' filter." },
+        "owner_name": { "type": "string", "description": "Round 5. Live lookup, not a snapshot - see the top-level field." }
       }
     },
     "uploadResponse": {
