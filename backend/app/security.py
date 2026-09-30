@@ -12,7 +12,8 @@ from passlib.context import CryptContext
 
 from .config import settings
 
-_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto",
+                    bcrypt__rounds=settings.bcrypt_rounds)
 
 
 def hash_password(plain: str) -> str:

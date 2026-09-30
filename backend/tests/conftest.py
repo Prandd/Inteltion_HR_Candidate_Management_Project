@@ -17,6 +17,36 @@ _tmp = tempfile.mkdtemp(prefix="inteltion-tests-")
 
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
 os.environ["UPLOAD_DIR"] = os.path.join(_tmp, "uploads")
+# Force local-disk storage for the whole suite, overriding whatever
+# backend/.env has set. Without this, a real backend/.env pointed at Azure
+# (as it has been all along this round) makes every pytest run write real
+# files to the live storage account over the network - slower, costs money
+# (however little), and leaves fixture01234.pdf-style junk behind in
+# production storage forever. Tests exercise the Azure path deliberately and
+# separately (a live uvicorn boot against the real account), never through
+# this suite.
+os.environ["AZURE_STORAGE_CONNECTION_STRING"] = ""
+# Lower bcrypt cost for the whole suite - purely for test speed (rounds=12 is
+# ~150-250ms per hash; rounds=4 is single-digit ms), NOT a security setting.
+# Real accounts (seed admin, everyone created through POST /api/hr-accounts
+# outside tests) always get the real default of 12 from config.py.
+#
+# This also shrinks - but does not eliminate - an intermittent failure this
+# round's testing surfaced: with round-5 adding many more back-to-back
+# make_account() calls per run, roughly 1-2% of create-account-then-login
+# round trips fail with a wrong-password 401 even though the password is
+# correct. Isolated proof this is not an app bug: 500 sequential
+# hash_password()/verify_password() calls with no web/DB layer involved at
+# all had ZERO failures; the failures only appear once FastAPI dispatches the
+# sync endpoints through its thread pool, run under CPU-intensive bcrypt work,
+# and - critically - a failing case does NOT reproduce on an immediate
+# re-check with the exact same stored hash and password. That non-determinism
+# on an identical repeat computation is not something a logic bug produces;
+# it matches this machine's independently-confirmed RAM instability (see
+# machine-has-memory-corruption in project memory) now shown to affect
+# CPU-bound crypto work, not just process crashes. If a test fails here with
+# a plausible-looking wrong-password 401, re-run before assuming a regression.
+os.environ["BCRYPT_ROUNDS"] = "4"
 os.environ["SEED_ADMIN_USERNAME"] = "admin"
 os.environ["SEED_ADMIN_PASSWORD"] = "test-admin-pw"
 os.environ["SEED_ADMIN_EMAIL"] = "admin@test.local"

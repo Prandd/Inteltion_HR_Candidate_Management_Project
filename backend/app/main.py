@@ -100,12 +100,35 @@ async def _http_exception_handler(_request, exc: StarletteHTTPException):
     )
 
 
+def _json_safe(value):
+    """Recursively replace a non-finite float (inf/-inf/nan) with its string
+    form. Starlette's JSONResponse calls json.dumps(..., allow_nan=False), so
+    a validation error whose *cause* was a non-finite float - e.g. a client
+    sending {"score": Infinity} against a field that rejects it - would
+    otherwise crash while trying to report that very error: Pydantic's
+    ValidationError.errors() embeds the offending value verbatim, and
+    encoding the 400 response then raises its own ValueError, surfacing as an
+    opaque 500 instead of the clean 400 the client should see."""
+    if isinstance(value, float):
+        if value != value:  # NaN is the only float that is not equal to itself
+            return "NaN"
+        if value == float("inf"):
+            return "Infinity"
+        if value == float("-inf"):
+            return "-Infinity"
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
+
+
 @app.exception_handler(RequestValidationError)
 async def _validation_exception_handler(_request, exc: RequestValidationError):
     return JSONResponse(
         status_code=400,
         content=jsonable_encoder(
-            {"data": None, "error": "Validation error", "detail": exc.errors()}
+            {"data": None, "error": "Validation error", "detail": _json_safe(exc.errors())}
         ),
     )
 

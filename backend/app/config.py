@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     login_max_failures: int = 5  # per username...
     login_failure_window_minutes: int = 15  # ...within this window -> 429
 
+    # bcrypt work factor. 12 (passlib's default) is the right value for real
+    # accounts - do not lower it in production. tests/conftest.py overrides
+    # this to something small purely for speed; see the note there about the
+    # intermittent hash/verify failures that motivated exposing this at all.
+    bcrypt_rounds: int = 12
+
     # ---- File storage. Empty connection string (the default) -> local disk,
     # zero setup. Set AZURE_STORAGE_CONNECTION_STRING to switch to Azure Blob -
     # see app/storage.py. Never hardcode the real value here. ----
