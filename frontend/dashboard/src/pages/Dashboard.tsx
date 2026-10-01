@@ -61,18 +61,10 @@ function Dashboard(){
             color:"green" as const
         },
         {
-            name:"CV rejected",
+            name:"Rejected",
             color:"red" as const
         }
     ];
-
-
-
-    useEffect(()=>{
-
-        fetchCandidates();
-
-    },[]);
 
 
 
@@ -91,46 +83,35 @@ function Dashboard(){
 
 
 
-    async function fetchCandidates(){
+    useEffect(()=>{
+        let cancelled = false;
 
-        try{
-
-            const response = await api.get(
-                "/candidates"
-            );
-
-
-            setCandidates(
-
-                Array.isArray(response.data.data)
-
-                ?
-
-                response.data.data
-
-                :
-
-                []
-
-            );
-
-
-        }
-        catch(error){
-
-            console.error(
-                "Failed to fetch candidates",
-                error
-            );
-
-        }
-        finally{
-
-            setLoading(false);
-
+        async function loadCandidates(){
+            try{
+                const response = await api.get("/candidates");
+                if(!cancelled){
+                    setCandidates(
+                        Array.isArray(response.data.data)
+                            ? response.data.data
+                            : []
+                    );
+                }
+            }
+            catch(error){
+                console.error("Failed to fetch candidates", error);
+            }
+            finally{
+                if(!cancelled){
+                    setLoading(false);
+                }
+            }
         }
 
-    }
+        void loadCandidates();
+        return ()=>{
+            cancelled = true;
+        };
+    },[]);
 
 
 
@@ -783,7 +764,13 @@ function Dashboard(){
 
                     <PipelineColumn
                         key={name}
-                        name={formatStatusLabel(name)}
+                        name={
+                            name === "CV rejected"
+                            ?
+                            "Failed / Rejected"
+                            :
+                            name
+                        }
                         count={
                             getCandidates(name).length
                         }

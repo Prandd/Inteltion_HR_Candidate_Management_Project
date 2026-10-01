@@ -91,17 +91,15 @@ function Header(){
 
 
 
-    function logout(){
+    function logout() {
+        sessionStorage.removeItem("inteltion_access_token");
+        sessionStorage.removeItem("inteltion_account");
 
+        localStorage.removeItem("inteltion_auth");
+        localStorage.removeItem("inteltion_access_token");
+        localStorage.removeItem("inteltion_account");
 
-        localStorage.removeItem(
-            "inteltion_auth"
-        );
-
-
-        window.location.href="/login";
-
-
+        window.location.replace("/login");
     }
 
 

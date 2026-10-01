@@ -17,6 +17,23 @@ services:
       API_BASE_URL: http://localhost:8000
       CORS_ORIGINS: http://localhost:5173,http://localhost:5174
       MAX_UPLOAD_MB: "10"
+      # First admin, seeded only while the hr_accounts table is empty. Every
+      # other HR account is created through POST /api/hr-accounts.
+      SEED_ADMIN_USERNAME: admin
+      SEED_ADMIN_PASSWORD: password123
+      SEED_ADMIN_EMAIL: admin@inteltion.local
+      SEED_ADMIN_FULL_NAME: Seed Admin
+      JWT_SECRET: dev-secret-change-me
+      # ---- Real deploy: set these (e.g. via `env_file: .env`, never inline
+      #      here) to switch resume storage from local disk to Azure Blob. Leave
+      #      AZURE_STORAGE_CONNECTION_STRING empty to keep local disk.
+      #      AZURE_STORAGE_ACCOUNT_NAME is the guardrail - if the connection
+      #      string names a different account the backend refuses to start.
+      #      Check which one is live at GET /health -> data.storage. ----
+      # AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
+      # AZURE_STORAGE_CONTAINER_NAME: resumes
+      # AZURE_STORAGE_ACCOUNT_NAME: ${AZURE_STORAGE_ACCOUNT_NAME}
+      # ALLOW_COMPANY_STORAGE: "false"
     volumes:
       - ./backend/data:/app/data          # DB + uploaded CVs persist on the host
       - ./shared-contracts:/contracts:ro  # seed data, read-only

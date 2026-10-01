@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inteltion.local/contracts/comment-log.schema.json",
+  "title": "CommentLog",
+  "version": "1.0.0",
+  "description": "One HR/line-manager comment on a candidate. NEW in round 4 - replaces the single `hr_comment` / `line_manager_comment` strings on the candidate record, which held one value each, overwrote silently, carried no author and no time, and were destroyed whenever the candidate record was rewritten. NULL RULE applies as everywhere else: no nulls, '' instead. Comments are keyed on candidate_id and live in their own table, so a CV re-upload leaves them completely untouched.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comment_id",
+    "candidate_id",
+    "author_account_id",
+    "author_name",
+    "author_role",
+    "comment_type",
+    "comment",
+    "commented_at",
+    "created_at",
+    "updated_at",
+    "is_edited"
+  ],
+  "properties": {
+    "comment_id": { "type": "string", "description": "UUID. Read-only." },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[0-9]{7}$",
+      "description": "IMMUTABLE. Taken from the URL path on POST, never from the body, and never updatable."
+    },
+    "author_account_id": {
+      "type": "string",
+      "description": "IMMUTABLE. hr_accounts.account_id, taken from the JWT only. If a client sends it in the body it is silently ignored. Compare it against GET /api/auth/me to decide whether to show edit/delete controls - but the server enforces ownership regardless."
+    },
+    "author_name": {
+      "type": "string",
+      "description": "IMMUTABLE snapshot of the author's full_name at write time. Render this, not the live account name: a comment from 2024 should still read as the name that wrote it, even after a rename or a deactivation."
+    },
+    "author_role": {
+      "type": "string",
+      "enum": ["admin", "hr", "line_manager", "viewer"],
+      "description": "IMMUTABLE snapshot of the author's role at write time."
+    },
+    "comment_type": {
+      "type": "string",
+      "enum": ["hr", "line_manager", "interview", "general"],
+      "description": "Which column/thread the UI files this under. Defaults from the author's role when the client omits it (hr -> 'hr', line_manager -> 'line_manager'). Editable by the author."
+    },
+    "comment": { "type": "string", "minLength": 1, "description": "The body. Editable by the author. Must be non-empty after trimming - a blank body is a 400." },
+    "commented_at": {
+      "type": "string",
+      "description": "ISO 8601. The DISPLAY timestamp, and the sort key. EDITABLE by the author, so HR can backdate a comment about a phone call last Tuesday. Show this one."
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO 8601. Server-generated, IMMUTABLE, audit truth. A PUT that tries to set it is ignored. This is the pair that lets commented_at be editable without destroying the audit trail."
+    },
+    "updated_at": { "type": "string", "description": "ISO 8601. Server-generated on every edit." },
+    "is_edited": {
+      "type": "boolean",
+      "description": "True once the author has edited the comment. Show an 'edited' marker next to commented_at."
+    }
+  },
+  "$defs": {
+    "endpoints": {
+      "description": "Not part of the payload - a summary of the API for Lanes A and B.",
+      "GET /api/candidates/{candidate_id}/comments": "Any logged-in account. Optional ?comment_type=hr. Excludes soft-deleted. Sorted commented_at DESC.",
+      "POST /api/candidates/{candidate_id}/comments": "Body: {comment, comment_type?, commented_at?}. Everything else is server-set. 201.",
+      "PUT /api/comments/{comment_id}": "Body: {comment?, comment_type?, commented_at?}. 403 unless the caller is the author - admins are NOT exempt, because an edited comment still carries the original author's name.",
+      "DELETE /api/comments/{comment_id}": "Soft delete: the comment leaves the UI, not the record (PDPA + the M3 audit-log requirement). 403 unless the caller is the author OR an admin (moderation)."
+    }
+  }
+}

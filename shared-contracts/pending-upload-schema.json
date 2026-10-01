@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inteltion.local/contracts/pending-upload.schema.json",
+  "title": "PendingUpload",
+  "version": "1.0.0",
+  "description": "An uploaded CV held for an HR decision because its exact normalized email or a soft identity match points to an existing candidate. No match auto-creates; a match never changes a record until HR chooses update or create-new. A pending upload is not visible in GET /api/candidates and does not count towards the upload response's `count`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pending_upload_id",
+    "filename",
+    "extracted_preview",
+    "duplicate_candidates",
+    "uploaded_by",
+    "created_at"
+  ],
+  "properties": {
+    "pending_upload_id": { "type": "string", "description": "UUID. Pass this to the resolution endpoints below." },
+    "filename": { "type": "string", "description": "The uploaded file's original name." },
+    "extracted_preview": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A deliberately small slice of the extraction - just enough for HR to compare the incoming CV against the suggested matches. The full extraction is applied only once the item is resolved.",
+      "required": ["full_name", "email", "phone", "applied_position", "experience_total", "extraction_confidence"],
+      "properties": {
+        "full_name": { "type": "string" },
+        "email": { "type": "string", "description": "'' when extraction found no email - which is the most common reason a file ends up here at all." },
+        "phone": { "type": "string" },
+        "applied_position": { "type": "string" },
+        "experience_total": { "type": "number" },
+        "extraction_confidence": { "type": "number" }
+      }
+    },
+    "duplicate_candidates": {
+      "type": "array",
+      "description": "The existing candidates this CV might belong to, in the order the matcher found them. Never empty. Show these next to `extracted_preview` so HR can tell whether it is the same person.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "full_name", "applied_position", "email", "phone", "status", "created_at", "updated_at", "rejected_at", "rejected_from_status", "rejection_reason", "latest_comment", "latest_comment_by"],
+        "properties": {
+          "candidate_id": { "type": "string", "pattern": "^[0-9]{7}$" },
+          "full_name": { "type": "string" },
+          "applied_position": { "type": "string" },
+          "email": { "type": "string" },
+          "phone": { "type": "string" },
+          "status": { "type": "string", "description": "So HR can see they are mid-pipeline before overwriting them." },
+          "created_at": { "type": "string", "description": "ISO 8601 application-cycle creation time." },
+          "updated_at": { "type": "string", "description": "ISO 8601. The 'update' resolution targets whichever of these was updated most recently." },
+          "rejected_at": { "type": ["string", "null"], "description": "Most recent rejection timestamp, if any." },
+          "rejected_from_status": { "type": ["string", "null"], "description": "Pipeline stage immediately before the most recent rejection." },
+          "rejection_reason": { "type": "string" },
+          "latest_comment": { "type": "string", "description": "Most recent live HR comment, if any." },
+          "latest_comment_by": { "type": "string" }
+        }
+      }
+    },
+    "uploaded_by": { "type": "string", "description": "hr_accounts.account_id of whoever uploaded the file." },
+    "created_at": { "type": "string", "description": "ISO 8601. The queue is ordered oldest-first." }
+  },
+  "$defs": {
+    "resolvedResponse": {
+      "title": "PendingUploadResolved",
+      "description": "`data` returned by both resolution endpoints.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pending_upload_id", "resolution", "candidate"],
+      "properties": {
+        "pending_upload_id": { "type": "string" },
+        "resolution": { "type": "string", "enum": ["updated", "created_new"] },
+        "candidate": {
+          "$ref": "https://inteltion.local/contracts/candidate.schema.json",
+          "description": "The candidate the CV ended up on - the existing one for 'updated', the brand new one for 'created_new'."
+        }
+      }
+    },
+    "endpoints": {
+      "description": "Not part of the payload - a summary of the API for Lanes A and B.",
+      "GET /api/pending-uploads": "Any logged-in account. Everything still awaiting a decision, oldest first. Use it to rebuild the prompt if the user closed the upload dialog without deciding - otherwise those CVs are simply never imported.",
+      "POST /api/pending-uploads/{pending_upload_id}/update": "'Same person.' Merges the CV into an existing candidate using the normal re-upload policy (extraction fields overwritten; status / applied_position / location / before_rejected_status / comments preserved) and files the CV as that candidate's next resume version. It does NOT take a candidate_id: when several candidates matched, the server picks the one with the newest updated_at - the record HR is actually working on. -> 200 with resolvedResponse.",
+      "POST /api/pending-uploads/{pending_upload_id}/create-new": "'Different person.' Creates a new candidate from the extraction, with the CV as version 1. The near-match is kept in the new candidate's `possible_duplicate_of` so it stays visible. -> 201 with resolvedResponse.",
+      "DELETE /api/pending-uploads/{pending_upload_id}": "'Neither - drop this file.' No candidate is created or touched. The decision is kept as an audit record but the stored CV bytes are deleted (PDPA: we should not hold a resume we decided not to keep). -> 200.",
+      "409": "Returned when the item was already resolved (someone else got there first, or a stale second tab), and when 'update' is called but every suggested candidate has since been deleted - in that case use create-new."
+    }
+  }
+}
