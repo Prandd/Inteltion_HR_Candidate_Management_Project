@@ -70,14 +70,9 @@ function StatusDropdown({
 
         "Hired",
 
-        "CV rejected"
+        "Rejected"
 
     ];
-
-
-
-
-
 
 
 
@@ -129,7 +124,7 @@ function StatusDropdown({
 
 
 
-            case "CV rejected":
+            case "Rejected":
 
                 return {
 
@@ -232,9 +227,7 @@ function StatusDropdown({
 
                 {
 
-                    status:value,
-
-                    previous_status:previousStatus
+                    status:value
 
                 }
 

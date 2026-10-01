@@ -156,10 +156,14 @@ def update_candidate(
 ):
     row = _get_or_404(db, candidate_id)
 
-    data = payload.model_dump(mode="json")
-    if data["email"] and "@" not in data["email"]:
+    data = payload.model_dump(
+        mode="json",
+        exclude_unset=True,
+    )
+    if "email" in data and data["email"] and "@" not in data["email"]:
         raise HTTPException(status_code=400, detail="Invalid email format")
-    new_status = data.pop("status")
+
+    new_status = data.pop("status", None)
     if new_status not in STATUS_SET:
         raise HTTPException(
             status_code=400,
@@ -173,10 +177,16 @@ def update_candidate(
                           account.account_id, source="manual_edit")
         setattr(row, key, value)
 
-    row.email_normalized = normalize_email(row.email)
-    # `status` goes through the transition rule so before_rejected_status is
-    # maintained and a status_history row is written - never a blanket setattr.
-    apply_status_change(db, row, new_status, account.account_id)
+    if "email" in data:
+        row.email_normalized = normalize_email(row.email)
+
+    if new_status is not None and new_status != row.status:
+        apply_status_change(
+            db,
+            row,
+            new_status,
+            account.account_id,
+        )
 
     row.updated_at = datetime.now(timezone.utc)
     try:
@@ -188,7 +198,7 @@ def update_candidate(
         db.rollback()
         raise HTTPException(
             status_code=409,
-            detail=f"Email '{data['email']}' is already used by another candidate",
+            detail=f"Email '{data.get('email', row.email)}' is already used by another candidate",
         )
     db.refresh(row)
     return {"data": _to_out(row, db), "error": None}

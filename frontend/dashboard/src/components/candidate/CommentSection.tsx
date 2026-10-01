@@ -15,7 +15,7 @@ import type {
 
 interface CommentType {
 
-    id:number;
+    comment_id:string;
 
     author:string;
 
@@ -88,7 +88,7 @@ function CommentSection({
     const [
         editingId,
         setEditingId
-    ] = useState<number|null>(null);
+    ] = useState<string|null>(null);
 
     const [
         editText,
@@ -233,10 +233,10 @@ function CommentSection({
 
     }
 
-    async function updateComment(id:number){
+    async function updateComment(commentId:string){
 
         await api.put(
-            `/candidates/comments/${id}`,
+            `/comments/${commentId}`,
             {
                 comment:editText
             }
@@ -251,7 +251,7 @@ function CommentSection({
 
     }
 
-    async function deleteComment(id:number){
+    async function deleteComment(commentId:string){
 
         if(
             !confirm(
@@ -262,7 +262,7 @@ function CommentSection({
 
 
         await api.delete(
-            `/candidates/comments/${id}`
+            `/comments/${commentId}`
         );
 
 
@@ -419,7 +419,7 @@ function CommentSection({
                         <div
 
                             key={
-                                comment.id
+                                comment.comment_id
                             }
 
                             className={`
@@ -573,7 +573,7 @@ function CommentSection({
 
 
                             {
-                                editingId === comment.id
+                                editingId === comment.comment_id
 
                                 ?
 
@@ -615,7 +615,7 @@ function CommentSection({
 
                                             onClick={() =>
                                                 updateComment(
-                                                    comment.id
+                                                    comment.comment_id
                                                 )
                                             }
 
@@ -704,7 +704,7 @@ function CommentSection({
                                             onClick={() => {
 
                                                 setEditingId(
-                                                    comment.id
+                                                    comment.comment_id
                                                 );
 
                                                 setEditText(
@@ -730,7 +730,7 @@ function CommentSection({
 
                                             onClick={() =>
                                                 deleteComment(
-                                                    comment.id
+                                                    comment.comment_id
                                                 )
                                             }
 

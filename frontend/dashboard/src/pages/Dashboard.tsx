@@ -58,7 +58,7 @@ function Dashboard(){
             color:"green" as const
         },
         {
-            name:"CV rejected",
+            name:"Rejected",
             color:"red" as const
         }
     ];
@@ -737,7 +737,7 @@ function Dashboard(){
                     <PipelineColumn
                         key={name}
                         name={
-                            name === "CV rejected"
+                            name === "Rejected"
                             ?
                             "Failed / Rejected"
                             :

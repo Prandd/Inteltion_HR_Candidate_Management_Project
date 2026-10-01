@@ -1,551 +1,210 @@
-import type {
-    CandidateDetailType
-} from "../../types/candidate";
-
-
+import { useEffect, useState } from "react";
+import api from "../../api/axios";
+import type { CandidateDetailType } from "../../types/candidate";
 
 interface Props {
-
     candidate: CandidateDetailType;
-
 }
 
-
-
-
-
-function StatusHistorySection({
-
-    candidate
-
-}:Props){
-
-
-
-    const history = candidate.status_history ?? [];
-
-
-    return (
-
-        <section
-
-            className="
-            bg-white
-            border
-            rounded-2xl
-            p-5
-            "
-
-        >
-
-
-
-            <div
-
-                className="
-                flex
-                justify-between
-                items-center
-                mb-6
-                "
-
-            >
-
-                <div>
-
-
-                    <h2
-
-                        className="
-                        text-sm
-                        font-bold
-                        text-gray-900
-                        uppercase
-                        "
-
-                    >
-
-                        Status History & Audit Trail
-
-                    </h2>
-
-
-
-                    <p
-
-                        className="
-                        text-xs
-                        text-gray-400
-                        mt-1
-                        "
-
-                    >
-
-                        Track candidate status changes and activities
-
-                    </p>
-
-
-                </div>
-
-
-
-
-
-                <span
-
-                    className="
-                    text-xs
-                    bg-gray-100
-                    text-gray-600
-                    px-3
-                    py-1
-                    rounded-full
-                    "
-
-                >
-
-                    {history.length} events
-
-                </span>
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-
-            {
-
-                history.length > 0
-
-                ?
-
-                <div
-
-                    className="
-                    space-y-6
-                    "
-
-                >
-
-
-                    {
-
-                    history.map(
-
-                        (item,index)=>(
-
-
-                            <div
-
-                                key={index}
-
-                                className="
-                                relative
-                                pl-8
-                                "
-
-                            >
-
-
-
-                                {/* Timeline line */}
-
-
-                                {
-
-                                index !== history.length-1 &&
-
-
-                                <div
-
-                                className={`
-                                absolute
-                                left-0
-                                top-2
-                                w-4
-                                h-4
-                                rounded-full
-                                border-4
-
-                                ${
-                                item.status === "CV rejected"
-
-                                ?
-
-                                "bg-red-600 border-red-100"
-
-                                :
-
-                                "bg-blue-600 border-blue-100"
-
-                                }
-
-                                `}
-
-                                />
-
-                                }
-
-
-
-
-
-
-                                {/* Timeline dot */}
-
-
-                                <div
-
-                                className={`
-                                absolute
-                                left-0
-                                top-2
-                                w-4
-                                h-4
-                                rounded-full
-                                border-4
-
-                                ${
-                                item.status === "CV rejected"
-
-                                ?
-
-                                "bg-red-600 border-red-100"
-
-                                :
-
-                                "bg-blue-600 border-blue-100"
-
-                                }
-
-                                `}
-
-/>
-
-
-
-
-
-
-
-                                <div>
-
-
-                                    {/* STATUS + TIME */}
-
-
-                                    <div
-
-                                        className="
-                                        flex
-                                        justify-between
-                                        gap-3
-                                        "
-
-                                    >
-
-
-
-                                        <h3
-
-                                            className="
-                                            text-sm
-                                            font-semibold
-                                            text-gray-900
-                                            "
-
-                                        >
-
-                                            {item.status}
-
-                                        </h3>
-
-
-
-
-
-                                        <p
-
-                                            className="
-                                            text-xs
-                                            text-gray-400
-                                            whitespace-nowrap
-                                            "
-
-                                        >
-
-                                            {
-
-                                            item.changed_at
-
-                                            ?
-
-                                            new Date(
-                                                item.changed_at
-                                            )
-                                            .toLocaleString(
-                                                "en-GB",
-                                                {
-                                                    dateStyle:"medium",
-                                                    timeStyle:"short"
-                                                }
-                                            )
-
-                                            :
-
-                                            "-"
-
-                                            }
-
-
-                                        </p>
-
-
-
-                                    </div>
-
-
-
-
-
-
-
-
-
-                                    {/* DETAILS */}
-
-
-                                    <div
-
-                                        className="
-                                        mt-3
-                                        text-sm
-                                        text-gray-600
-                                        space-y-2
-                                        "
-
-                                    >
-
-
-
-
-
-                                        {
-                                            item.previous_status &&
-
-
-                                            <p>
-
-
-                                                <span
-
-                                                    className="
-                                                    text-gray-400
-                                                    "
-
-                                                >
-
-                                                    Previous status:
-
-                                                </span>
-
-
-                                                {" "}
-
-
-                                                <span
-
-                                                    className="
-                                                    font-medium
-                                                    text-gray-700
-                                                    "
-
-                                                >
-
-                                                    {
-                                                        item.previous_status
-                                                    }
-
-                                                </span>
-
-
-
-                                            </p>
-
-                                        }
-
-
-
-
-
-
-
-                                        <p>
-
-
-                                            <span
-
-                                                className="
-                                                text-gray-400
-                                                "
-
-                                            >
-
-                                                Action:
-
-                                            </span>
-
-
-                                            {" "}
-
-
-                                           {
-                                            item.status === "CV rejected"
-
-                                            ?
-
-                                            `Rejected after ${item.previous_status || "-"}`
-
-                                            :
-
-                                            item.action || "-"
-                                        }
-
-
-                                        </p>
-
-
-
-
-
-
-
-                                        <p>
-
-
-                                            <span
-
-                                                className="
-                                                text-gray-400
-                                                "
-
-                                            >
-
-                                                Changed by:
-
-                                            </span>
-
-
-                                            {" "}
-
-
-                                            {
-                                                item.changed_by
-                                                ||
-                                                "System"
-                                            }
-
-
-                                        </p>
-
-
-
-
-
-
-                                        {
-                                            item.status === "CV rejected"
-                                            &&
-                                            item.previous_status
-                                            &&
-                                            <div
-
-                                                className="
-                                                mt-3
-                                                bg-red-50
-                                                border
-                                                border-red-100
-                                                rounded-lg
-                                                px-3
-                                                py-2
-                                                text-xs
-                                                text-red-600
-                                                "
-
-                                            >
-
-                                                Rejected after:
-
-                                                {" "}
-
-                                                <b>
-                                                    {item.previous_status}
-                                                </b>
-
-                                            </div>
-                                        }
-
-
-
-                                    </div>
-
-
-
-
-                                </div>
-
-
-
-
-                            </div>
-
-
-                        )
-
-                    )
-
-                    }
-
-
-
-                </div>
-
-
-                :
-
-
-                <p
-
-                    className="
-                    text-sm
-                    text-gray-400
-                    "
-
-                >
-
-                    No status history available
-
-                </p>
-
-
+interface StatusHistoryItem {
+    history_id: string;
+    candidate_id: string;
+    from_status: string | null;
+    to_status: string;
+    changed_by: string;
+    changed_at: string;
+    reason: string;
+}
+
+function StatusHistorySection({ candidate }: Props) {
+    const [history, setHistory] = useState<StatusHistoryItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        async function fetchStatusHistory() {
+            if (!candidate.candidate_id) {
+                setHistory([]);
+                setLoading(false);
+                return;
             }
 
+            try {
+                setLoading(true);
+                setError("");
 
+                const response = await api.get(
+                    `/candidates/${candidate.candidate_id}/status-history`
+                );
 
+                setHistory(
+                    Array.isArray(response.data.data)
+                        ? response.data.data
+                        : []
+                );
+            } catch (err) {
+                console.error("Failed to load status history:", err);
+                setHistory([]);
+                setError("Unable to load status history.");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchStatusHistory();
+    }, [candidate.candidate_id, candidate.status]);
+
+    function formatDate(value: string) {
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return value;
+        }
+
+        return date.toLocaleString();
+    }
+
+    function statusStyle(status: string) {
+        switch (status) {
+            case "Assessment":
+                return {
+                    dot: "bg-orange-500 border-orange-100",
+                    text: "text-orange-600",
+                };
+
+            case "Interview":
+                return {
+                    dot: "bg-purple-500 border-purple-100",
+                    text: "text-purple-600",
+                };
+
+            case "Hired":
+                return {
+                    dot: "bg-green-500 border-green-100",
+                    text: "text-green-600",
+                };
+
+            case "Rejected":
+                return {
+                    dot: "bg-red-600 border-red-100",
+                    text: "text-red-600",
+                };
+
+            case "CV passed":
+                return {
+                    dot: "bg-cyan-500 border-cyan-100",
+                    text: "text-cyan-600",
+                };
+
+            default:
+                return {
+                    dot: "bg-blue-600 border-blue-100",
+                    text: "text-blue-600",
+                };
+        }
+    }
+
+    return (
+        <section className="bg-white border rounded-2xl p-5">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h2 className="text-sm font-bold text-gray-900 uppercase">
+                        Status History & Audit Trail
+                    </h2>
+
+                    <p className="text-xs text-gray-400 mt-1">
+                        Track candidate status changes and activities
+                    </p>
+                </div>
+
+                <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+                    {history.length} events
+                </span>
+            </div>
+
+            {loading ? (
+                <p className="text-sm text-gray-400">
+                    Loading status history...
+                </p>
+            ) : error ? (
+                <p className="text-sm text-red-500">
+                    {error}
+                </p>
+            ) : history.length === 0 ? (
+                <p className="text-sm text-gray-400">
+                    No status history available.
+                </p>
+            ) : (
+                <div className="space-y-6">
+                    {history.map((item, index) => {
+                        const style = statusStyle(item.to_status);
+
+                        return (
+                            <div
+                                key={item.history_id}
+                                className="relative pl-8"
+                            >
+                                {index !== history.length - 1 && (
+                                    <div className="absolute left-[7px] top-6 bottom-[-24px] w-px bg-gray-200" />
+                                )}
+
+                                <div
+                                    className={`
+                                        absolute
+                                        left-0
+                                        top-1
+                                        w-4
+                                        h-4
+                                        rounded-full
+                                        border-4
+                                        ${style.dot}
+                                    `}
+                                />
+
+                                <div>
+                                    <div className="flex justify-between gap-3">
+                                        <div>
+                                            <h3
+                                                className={`
+                                                    text-sm
+                                                    font-semibold
+                                                    ${style.text}
+                                                `}
+                                            >
+                                                {item.to_status}
+                                            </h3>
+
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                {item.from_status
+                                                    ? `${item.from_status} → ${item.to_status}`
+                                                    : `Status set to ${item.to_status}`}
+                                            </p>
+                                        </div>
+
+                                        <span className="text-xs text-gray-400 whitespace-nowrap">
+                                            {formatDate(item.changed_at)}
+                                        </span>
+                                    </div>
+
+                                    {item.reason && (
+                                        <p className="text-sm text-gray-600 mt-2">
+                                            {item.reason}
+                                        </p>
+                                    )}
+
+                                    {item.changed_by && (
+                                        <p className="text-xs text-gray-400 mt-2">
+                                            Changed by: {item.changed_by}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </section>
-
     );
-
 }
-
-
 
 export default StatusHistorySection;
