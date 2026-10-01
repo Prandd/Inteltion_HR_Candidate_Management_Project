@@ -16,3 +16,6 @@ backend/data/
 *.sqlite3
 # LLM service dependencies
 !llm-service/requirements.txt
+
+# Local runtime uploads
+data/uploads/
