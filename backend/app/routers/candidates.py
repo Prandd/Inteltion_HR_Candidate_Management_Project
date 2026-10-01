@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_account
 from ..config import settings
 from ..database import get_db
-from ..extraction import extract_candidate  # MOCK - swap for llm-service on Day 6
+from extractor import extract_candidate  # Real CV extractor
 from ..models_db import (
     Candidate,
     CandidateChangeLog,

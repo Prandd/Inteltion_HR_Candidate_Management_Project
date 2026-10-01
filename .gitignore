@@ -14,3 +14,5 @@ venv/
 backend/data/
 *.db
 *.sqlite3
+# LLM service dependencies
+!llm-service/requirements.txt
