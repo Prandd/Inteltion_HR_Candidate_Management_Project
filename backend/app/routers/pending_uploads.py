@@ -26,6 +26,7 @@ from ..database import get_db
 from ..models_db import Candidate, HRAccount, PendingUpload, StatusHistory, utcnow
 from ..schemas import PendingUploadResolved
 from ..services import (
+    apply_status_change,
     assign_initial_owner,
     candidate_out,
     merge_on_reupload,
@@ -95,8 +96,8 @@ def resolve_as_update(
 ):
     """"This CV belongs to somebody we already have." Applies the same merge
     policy as a normal re-upload: extraction-owned fields are overwritten,
-    HR-owned fields (`status`, `applied_position`, `location`,
-    `before_rejected_status`) and comment history are left alone. Ownership is
+    The replacement starts the application again at New. Other HR-owned fields
+    (`applied_position`, `location`) and comment history are left alone. Ownership is
     left alone too (round 5) - the candidate already has an owner, and merging
     a re-upload into them does not change who brought them in."""
     pending = _open_or_404(db, pending_upload_id)
@@ -118,6 +119,8 @@ def resolve_as_update(
                           pending.file_bytes or b"", account.account_id)
 
     merge_on_reupload(db, target, pending.extracted_fields, account.account_id)
+    apply_status_change(db, target, "New", account.account_id,
+                        reason="Application restarted by replacing CV")
     for field, value in (("resume_url", stored["url"]),
                          ("resume_filename", stored["filename"]),
                          ("upload_status", "Done")):
@@ -165,7 +168,8 @@ def resolve_as_create_new(
     pending = _open_or_404(db, pending_upload_id)
 
     candidate_id = next_candidate_id(db)
-    row = Candidate(candidate_id=candidate_id, upload_status="Processing")
+    row = Candidate(candidate_id=candidate_id, upload_status="Processing",
+                    created_at=pending.created_at)
     db.add(row)
     db.commit()
 

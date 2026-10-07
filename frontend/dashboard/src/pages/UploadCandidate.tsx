@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isAxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import DuplicateCandidateModal from "../components/DuplicateCandidateModal";
@@ -18,6 +19,29 @@ function UploadCandidate() {
     const [reviewQueue, setReviewQueue] = useState<PendingUploadReview[]>([]);
     const [currentReview, setCurrentReview] = useState<PendingUploadReview | null>(null);
     const [resolvingDuplicate, setResolvingDuplicate] = useState(false);
+    const [resolvingAction, setResolvingAction] = useState<"update" | "create-new" | null>(null);
+    const [reviewError, setReviewError] = useState("");
+    const [pendingError, setPendingError] = useState("");
+    const uploadableCount = files.filter(item => item.status === "ready" || item.status === "error").length;
+
+    useEffect(() => {
+        let cancelled = false;
+        api.get("/pending-uploads").then(response => {
+            if (cancelled) return;
+            let accountId = "";
+            try {
+                accountId = JSON.parse(sessionStorage.getItem("inteltion_account") || "null")?.account_id || "";
+            } catch { return; }
+            const pending = (response.data.data as PendingUploadReview[]).filter(item => item.uploaded_by === accountId);
+            setReviewQueue(previous => {
+                const ids = new Set(previous.map(item => item.pending_upload_id));
+                return [...previous, ...pending.filter(item => !ids.has(item.pending_upload_id))];
+            });
+        }).catch(() => {
+            if (!cancelled) setPendingError("Unable to load pending reviews. Refresh to try again.");
+        });
+        return () => { cancelled = true; };
+    }, []);
 
     function handleFiles(selected: File[]) {
         const newFiles: UploadItem[] = selected.map((file) => ({
@@ -85,6 +109,7 @@ function UploadCandidate() {
                         90
                     );
                     updateAllUploading(percent);
+                    if (event.loaded >= event.total) setStage("Reading CVs and checking for duplicates...");
                 }
             });
 
@@ -122,7 +147,8 @@ function UploadCandidate() {
             );
 
             if (needsReview.length > 0) {
-                setReviewQueue(needsReview.slice(1));
+                setReviewQueue(previous => [...previous, ...needsReview]);
+                setReviewError("");
                 setCurrentReview(needsReview[0]);
                 setStage(
                     `${needsReview.length} upload${
@@ -142,7 +168,6 @@ function UploadCandidate() {
             }
 
             setStage("Completed successfully");
-            setTimeout(() => navigate("/"), 1000);
         } catch (error) {
             console.error(error);
             setFiles((prev) =>
@@ -158,23 +183,18 @@ function UploadCandidate() {
         }
     }
 
-    function showNextReview() {
-        if (reviewQueue.length === 0) {
-            setCurrentReview(null);
-            setStage("Duplicate review completed");
-            setTimeout(() => navigate("/"), 1000);
-            return;
-        }
-
-        const [next, ...rest] = reviewQueue;
-        setCurrentReview(next);
-        setReviewQueue(rest);
+    function showNextReview(resolvedId: string) {
+        const remaining = reviewQueue.filter(item => item.pending_upload_id !== resolvedId);
+        setReviewQueue(remaining);
+        setCurrentReview(remaining[0] || null);
     }
 
     async function resolveDuplicate(action: "update" | "create-new") {
         if (!currentReview || resolvingDuplicate) return;
 
         setResolvingDuplicate(true);
+        setResolvingAction(action);
+        setReviewError("");
         try {
             const response = await api.post(
                 `/pending-uploads/${currentReview.pending_upload_id}/${action}`
@@ -183,20 +203,22 @@ function UploadCandidate() {
             markByFilename(currentReview.filename, "success");
             setStage(
                 action === "update"
-                    ? `Updated ${resolvedCandidate?.full_name || "existing candidate"}`
+                    ? `Replaced CV for ${resolvedCandidate?.full_name || "existing candidate"} · Status: New`
                     : `Created ${resolvedCandidate?.full_name || "new candidate"}`
             );
-            showNextReview();
+            showNextReview(currentReview.pending_upload_id);
         } catch (error) {
             console.error(error);
-            setStage("Could not resolve duplicate candidate");
+            setReviewError(isAxiosError(error) && typeof error.response?.data?.error === "string"
+                ? error.response.data.error : "Could not save your choice. Please try again.");
         } finally {
             setResolvingDuplicate(false);
+            setResolvingAction(null);
         }
     }
 
     function removeFile(index: number) {
-        if (uploading) return;
+        if (uploading || files[index]?.status === "review") return;
         setFiles((prev) => prev.filter((_, i) => i !== index));
     }
 
@@ -204,11 +226,14 @@ function UploadCandidate() {
         <>
             {currentReview && (
                 <DuplicateCandidateModal
+                    key={currentReview.pending_upload_id}
                     review={currentReview}
                     loading={resolvingDuplicate}
+                    action={resolvingAction}
+                    error={reviewError}
                     onClose={() => {
                         setCurrentReview(null);
-                        setReviewQueue([]);
+                        setReviewError("");
                         setStage("Duplicate review pending");
                     }}
                     onUpdateRecord={() => resolveDuplicate("update")}
@@ -236,6 +261,23 @@ function UploadCandidate() {
                     </div>
 
                     <div className="bg-white border rounded-2xl p-6">
+                        {pendingError && <p role="alert" className="mb-4 text-sm text-red-600">{pendingError}</p>}
+                        {reviewQueue.length > 0 && (
+                            <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                                <h2 className="text-sm font-semibold text-slate-800">Pending duplicate reviews ({reviewQueue.length})</h2>
+                                <p className="mt-1 text-xs text-slate-500">These CVs need your decision before they can be saved.</p>
+                                <div className="mt-3 space-y-2">
+                                    {reviewQueue.map(review => (
+                                        <div key={review.pending_upload_id} className="flex items-center justify-between gap-3">
+                                            <span className="min-w-0 truncate text-sm text-slate-600">{review.filename}</span>
+                                            <button type="button" disabled={uploading || resolvingDuplicate} onClick={() => {
+                                                setReviewError(""); setCurrentReview(review);
+                                            }} className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-white disabled:opacity-50">Review</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                         <label className="h-56 border-2 border-dashed border-blue-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 transition">
                             <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mb-3">
                                 ↑
@@ -255,6 +297,7 @@ function UploadCandidate() {
                                 type="file"
                                 accept=".pdf,.docx"
                                 onChange={onFileChange}
+                                disabled={uploading}
                             />
                         </label>
 
@@ -286,7 +329,8 @@ function UploadCandidate() {
 
                                         <button
                                             onClick={() => removeFile(index)}
-                                            disabled={uploading}
+                                            disabled={uploading || item.status === "review"}
+                                            aria-label={`Remove ${item.file.name}`}
                                             className="text-red-500 disabled:text-gray-300"
                                         >
                                             ×
@@ -308,14 +352,14 @@ function UploadCandidate() {
                         </div>
 
                         {stage && (
-                            <p className="text-center text-sm text-gray-500 mt-4">
+                            <p role="status" className="text-center text-sm text-gray-500 mt-4">
                                 {stage}
                             </p>
                         )}
 
                         <button
                             disabled={
-                                files.length === 0 ||
+                                uploadableCount === 0 ||
                                 uploading ||
                                 currentReview !== null
                             }
@@ -324,10 +368,12 @@ function UploadCandidate() {
                         >
                             {uploading
                                 ? "Processing..."
-                                : `Upload ${files.length} CV${
-                                      files.length === 1 ? "" : "s"
+                                : `Upload ${uploadableCount} CV${
+                                      uploadableCount === 1 ? "" : "s"
                                   }`}
                         </button>
+                        {files.some(item => item.status === "success") && <button type="button" onClick={() => navigate("/")}
+                            className="mt-3 w-full rounded-xl py-2 text-sm text-slate-500 hover:text-slate-800">View dashboard →</button>}
                     </div>
                 </div>
             </div>

@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 from datetime import datetime, timezone
 
@@ -8,7 +9,20 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_account
 from ..config import settings
 from ..database import get_db
-from extractor import extract_candidate  # Real CV extractor
+
+
+LLM_SERVICE_PATH = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "../../../llm-service/cv-parsing"
+    )
+)
+
+if LLM_SERVICE_PATH not in sys.path:
+    sys.path.insert(0, LLM_SERVICE_PATH)
+
+from extractor import extract_candidate
+
 from ..models_db import (
     Candidate,
     CandidateChangeLog,
@@ -229,16 +243,16 @@ def transfer_candidate_ownership(
     account: HRAccount = Depends(get_current_account),
 ):
     """Round 5 - "Owner changes owner to give to another user, only their own."
-    Allowed callers: the CURRENT owner (transferring their own candidate away),
-    or any `admin` (override). Anyone else -> 403, even if they are the new
+    Allowed callers: the CURRENT owner (transferring their own candidate away).
+    Anyone else -> 403, even if they are the new
     owner-to-be - a transfer is something done TO an account, never something
     an account does to grant itself ownership."""
     row = _get_or_404(db, candidate_id)
 
-    if account.account_id != row.owner_account_id and account.role != "admin":
+    if account.account_id != row.owner_account_id:
         raise HTTPException(
             status_code=403,
-            detail="Only the current owner or an admin can transfer ownership",
+            detail="Only the current owner can transfer ownership",
         )
 
     new_owner = db.get(HRAccount, payload.new_owner_account_id)
@@ -264,6 +278,27 @@ def transfer_candidate_ownership(
     return {"data": _to_out(row, db), "error": None}
 
 
+@router.get("/candidates/{candidate_id}/ownership-options")
+def get_ownership_options(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    row = _get_or_404(db, candidate_id)
+    if account.account_id != row.owner_account_id:
+        raise HTTPException(status_code=403, detail="Only the current owner can transfer ownership")
+    accounts = (
+        db.query(HRAccount)
+        .filter(HRAccount.is_active.is_(True), HRAccount.account_id != row.owner_account_id)
+        .order_by(HRAccount.full_name.asc(), HRAccount.username.asc())
+        .all()
+    )
+    return {"data": [
+        {"account_id": a.account_id, "full_name": a.full_name, "username": a.username}
+        for a in accounts
+    ], "error": None}
+
+
 @router.get("/candidates/{candidate_id}/ownership-history")
 def get_ownership_history(candidate_id: str, db: Session = Depends(get_db)):
     _get_or_404(db, candidate_id)
@@ -273,8 +308,15 @@ def get_ownership_history(candidate_id: str, db: Session = Depends(get_db)):
         .order_by(OwnershipHistory.changed_at.desc())
         .all()
     )
+    names = owner_names_for(db, [account_id for r in rows for account_id in
+                                 (r.from_owner_account_id, r.to_owner_account_id, r.changed_by)])
     return {
-        "data": [OwnershipHistoryOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "data": [dict(
+            OwnershipHistoryOut.model_validate(r).model_dump(mode="json"),
+            from_owner_name=names.get(r.from_owner_account_id, ""),
+            to_owner_name=names.get(r.to_owner_account_id, ""),
+            changed_by_name=names.get(r.changed_by, ""),
+        ) for r in rows],
         "error": None,
     }
 
@@ -331,8 +373,10 @@ def get_status_history(candidate_id: str, db: Session = Depends(get_db)):
         .order_by(StatusHistory.changed_at.desc())
         .all()
     )
+    names = owner_names_for(db, [r.changed_by for r in rows])
     return {
-        "data": [StatusHistoryOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "data": [dict(StatusHistoryOut.model_validate(r).model_dump(mode="json"),
+                      changed_by_name=names.get(r.changed_by, "")) for r in rows],
         "error": None,
     }
 

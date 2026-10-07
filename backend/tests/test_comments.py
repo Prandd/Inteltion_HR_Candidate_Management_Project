@@ -299,3 +299,20 @@ def test_candidates_prefixed_delete_alias_also_soft_deletes(
 
     listed = client.get(f"/api/candidates/{cid}/comments", headers=headers).json()["data"]
     assert comment_id not in [c["comment_id"] for c in listed]
+
+
+def test_comment_list_shows_updated_account_name(client, auth, make_account, new_candidate):
+    author, headers = make_account(role="hr", full_name="Original Name")
+    cid = new_candidate()["candidate_id"]
+    response = client.post(f"/api/candidates/{cid}/comments", headers=headers,
+                           json={"comment": "Feedback from this account"})
+    assert response.status_code == 201, response.text
+    comment_id = response.json()["data"]["comment_id"]
+    renamed = client.put(f"/api/hr-accounts/{author['account_id']}", headers=auth,
+                        json={"full_name": "Updated Name"})
+    assert renamed.status_code == 200, renamed.text
+    comments = client.get(f"/api/candidates/{cid}/comments", headers=auth).json()["data"]
+    comment = next(item for item in comments if item["comment_id"] == comment_id)
+    assert comment["author_name"] == "Updated Name"
+    assert comment["author_account_id"] == author["account_id"]
+    assert comment["is_edited"] is False

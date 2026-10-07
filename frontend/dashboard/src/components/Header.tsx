@@ -3,9 +3,35 @@ import {
     useEffect,
     useRef
 } from "react";
+import api from "../api/axios";
+
+interface ProfileAccount {
+    full_name?: string;
+    username?: string;
+    role?: string;
+}
 
 
 function Header(){
+    const [account, setAccount] = useState<ProfileAccount | null>(() => {
+        try {
+            return JSON.parse(sessionStorage.getItem("inteltion_account") || "null");
+        } catch { return null; }
+    });
+    const name = account?.full_name?.trim() || account?.username || "User";
+    const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+    const role = ({ admin: "Admin", hr: "HR", line_manager: "Line Manager", recruiter: "Recruiter" } as Record<string, string>)[account?.role || ""] || account?.role?.replaceAll("_", " ") || "";
+
+    useEffect(() => {
+        let cancelled = false;
+        api.get("/auth/me").then(response => {
+            if (!cancelled) {
+                setAccount(response.data.data);
+                sessionStorage.setItem("inteltion_account", JSON.stringify(response.data.data));
+            }
+        }).catch(() => { /* Keep the cached account if the connection is unavailable. */ });
+        return () => { cancelled = true; };
+    }, []);
 
 
     const [
@@ -408,7 +434,7 @@ function Header(){
 
                         >
 
-                            HR
+                            {initials}
 
 
                         </div>
@@ -450,7 +476,7 @@ function Header(){
 
                                 >
 
-                                    HR Admin
+                                    {name}
 
 
                                 </p>
@@ -486,7 +512,7 @@ function Header(){
 
                             >
 
-                                Recruiter
+                                {role}
 
 
                             </p>

@@ -31,6 +31,7 @@ function Dashboard(){
 
     const [experience,setExperience] = useState<number | "">("");
     const [position,setPosition] = useState("All");
+    const [owner,setOwner] = useState("all");
 
     const [sortBy,setSortBy] = useState("latest");
 
@@ -186,6 +187,12 @@ function Dashboard(){
             &&
 
             matchPosition
+
+            &&
+
+            (owner === "all" || (owner === "unassigned"
+                ? !candidate.owner_account_id
+                : candidate.owner_account_id === owner))
 
         );
 
@@ -368,6 +375,13 @@ function Dashboard(){
     ];
 
 
+
+    const owners = Array.from(new Map(
+        candidates.filter(candidate => candidate.owner_account_id).map(candidate => [
+            candidate.owner_account_id!,
+            candidate.owner_name || candidate.owner_account_id!,
+        ])
+    ).entries()).sort((a, b) => a[1].localeCompare(b[1]));
 
     if(loading){
 
@@ -588,6 +602,27 @@ function Dashboard(){
 
 
 
+
+                    {/* OWNER */}
+
+                    <select
+                        aria-label="Filter by owner"
+                        value={owner}
+                        onChange={event => {
+                            setOwner(event.target.value);
+                            setTablePage(1);
+                            setSelectedCandidateIds(new Set());
+                        }}
+                        className="h-10 w-full md:w-56 bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100"
+                    >
+                        <option value="all">Owner: All</option>
+                        {owners.map(([accountId, name]) => (
+                            <option key={accountId} value={accountId}>Owner: {name}</option>
+                        ))}
+                        {candidates.some(candidate => !candidate.owner_account_id) && (
+                            <option value="unassigned">Owner: Unassigned</option>
+                        )}
+                    </select>
 
                     {/* POSITION */}
 

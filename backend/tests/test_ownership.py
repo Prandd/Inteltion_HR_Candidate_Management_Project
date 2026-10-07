@@ -2,7 +2,7 @@
 
 Rule: whoever imports a CV owns it. Re-upload and the pending-upload "update"
 resolution never change it. Only the dedicated transfer endpoint does, and only
-for the current owner or an admin.
+for the current owner.
 """
 from conftest import upload
 
@@ -71,7 +71,7 @@ def test_owner_can_transfer_their_own_candidate(client, make_account, new_candid
     assert r.json()["data"]["owner_account_id"] == other_account["account_id"]
 
 
-def test_admin_can_transfer_a_candidate_they_do_not_own(client, auth, make_account, new_candidate):
+def test_admin_cannot_transfer_a_candidate_they_do_not_own(client, auth, make_account, new_candidate):
     owner_account, owner_headers = make_account(role="hr")
     other_account, _ = make_account(role="hr")
 
@@ -89,8 +89,11 @@ def test_admin_can_transfer_a_candidate_they_do_not_own(client, auth, make_accou
         f"/api/candidates/{cid}/transfer-ownership", headers=auth,  # the seed admin, not the owner
         json={"new_owner_account_id": other_account["account_id"]},
     )
-    assert r.status_code == 200, r.text
-    assert r.json()["data"]["owner_account_id"] == other_account["account_id"]
+    assert r.status_code == 403, r.text
+    candidate = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
+    assert candidate["owner_account_id"] == owner_account["account_id"]
+    history = client.get(f"/api/candidates/{cid}/ownership-history", headers=auth).json()["data"]
+    assert len(history) == 1
 
 
 def test_neither_owner_nor_admin_cannot_transfer(client, make_account, new_candidate):
@@ -192,6 +195,9 @@ def test_ownership_history_records_creation_and_transfer(
     assert newest["to_owner_account_id"] == new_owner["account_id"]
     assert newest["changed_by"] == admin_login["account"]["account_id"]
     assert newest["reason"] == "handoff"
+    assert newest["from_owner_name"] == admin_login["account"]["full_name"]
+    assert newest["to_owner_name"] == new_owner["full_name"]
+    assert newest["changed_by_name"] == admin_login["account"]["full_name"]
 
 
 # --------------------------------------------------- ownership survives re-upload
@@ -268,3 +274,51 @@ def test_pending_upload_resolve_as_create_new_owner_is_original_uploader(
 
     assert resolved["candidate"]["owner_account_id"] == uploader_account["account_id"]
     assert resolved["candidate"]["owner_account_id"] != resolver_account["account_id"]
+    history = client.get(
+        f"/api/candidates/{resolved['candidate']['candidate_id']}/ownership-history", headers=auth
+    ).json()["data"]
+    assert history[0]["changed_at"] == review["created_at"]
+    assert resolved["candidate"]["created_at"] == review["created_at"]
+
+
+def test_transfer_options_are_available_to_owner_without_admin_access(
+    client, auth, make_account, fixed_extraction
+):
+    owner, owner_headers = make_account(role="hr")
+    target, _ = make_account(role="hr")
+    inactive, _ = make_account(role="hr")
+    client.delete(f"/api/hr-accounts/{inactive['account_id']}", headers=auth)
+    fixed_extraction("options-owner")
+    candidate = upload(client, owner_headers, ("owner.pdf", "options-owner")).json()["data"]["created"][0]
+    cid = candidate["candidate_id"]
+    response = client.get(f"/api/candidates/{cid}/ownership-options", headers=owner_headers)
+    assert response.status_code == 200
+    options = response.json()["data"]
+    ids = {item["account_id"] for item in options}
+    assert target["account_id"] in ids
+    assert owner["account_id"] not in ids
+    assert inactive["account_id"] not in ids
+    assert all(set(item) == {"account_id", "full_name", "username"} for item in options)
+    assert client.get(f"/api/candidates/{cid}/ownership-options", headers=auth).status_code == 403
+    assert client.get(f"/api/candidates/{cid}/ownership-options").status_code == 401
+
+
+def test_previous_owner_loses_transfer_access_and_new_owner_can_transfer(
+    client, auth, make_account, new_candidate
+):
+    target, target_headers = make_account(role="hr")
+    next_owner, _ = make_account(role="hr")
+    candidate = new_candidate()
+    cid = candidate["candidate_id"]
+    endpoint = f"/api/candidates/{cid}/transfer-ownership"
+    assert client.post(endpoint, headers=auth,
+                       json={"new_owner_account_id": target["account_id"]}).status_code == 200
+    assert client.post(endpoint, headers=auth,
+                       json={"new_owner_account_id": next_owner["account_id"]}).status_code == 403
+    assert client.post(endpoint, headers=target_headers,
+                       json={"new_owner_account_id": next_owner["account_id"]}).status_code == 200
+    history = client.get(f"/api/candidates/{cid}/ownership-history", headers=auth).json()["data"]
+    assert len(history) == 3
+    assert history[0]["from_owner_account_id"] == target["account_id"]
+    assert history[0]["to_owner_account_id"] == next_owner["account_id"]
+    assert history[-1]["changed_at"] == candidate["created_at"]

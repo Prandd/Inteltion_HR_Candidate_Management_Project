@@ -229,7 +229,7 @@ function ExperienceSection({
 
 
                                             {
-                                                index===0 &&
+                                                /^(present|current|ongoing|now)$/i.test(exp.end_date?.trim() || "") &&
 
                                                 <span
 
@@ -318,7 +318,7 @@ function ExperienceSection({
                                             {
                                                 exp.end_date
                                                 ||
-                                                "Present"
+                                                "Not provided"
                                             }
 
                                         </span>

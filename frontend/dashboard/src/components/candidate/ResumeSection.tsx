@@ -108,8 +108,10 @@ function ResumeSection({
             className="
             bg-white
             border
+            border-gray-200
             rounded-2xl
-            p-5
+            p-6
+            shadow-sm
             "
 
         >

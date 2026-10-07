@@ -96,11 +96,10 @@ def test_update_merges_onto_the_existing_candidate(client, auth, fixed_extractio
     assert len(after) == len(before)
 
 
-def test_update_preserves_hr_owned_fields_and_comments(
+def test_replace_restarts_status_and_preserves_other_hr_fields_and_comments(
     client, auth, make_account, fixed_extraction
 ):
-    """Same guarantee as a normal re-upload - resolving a pending item is not a
-    back door around the merge policy."""
+    """Replacing a CV restarts status while preserving other HR data."""
     _, hr = make_account(role="hr")
     first_id, review = _stage_soft_duplicate(
         client, auth, fixed_extraction, "keep-a", "keep-b", phone="0891110004",
@@ -119,7 +118,11 @@ def test_update_preserves_hr_owned_fields_and_comments(
                 headers=auth)
 
     after = client.get(f"/api/candidates/{first_id}", headers=auth).json()["data"]
-    assert after["status"] == "Interview"
+    assert after["status"] == "New"
+    history = client.get(f"/api/candidates/{first_id}/status-history", headers=auth).json()["data"]
+    assert history[0]["from_status"] == "Interview"
+    assert history[0]["to_status"] == "New"
+    assert history[0]["reason"] == "Application restarted by replacing CV"
     assert after["applied_position"] == "Staff Engineer"
     assert after["location"] == "Phuket"
 
@@ -316,3 +319,26 @@ def test_update_when_every_match_was_deleted_says_use_create_new(
         f"/api/pending-uploads/{review['pending_upload_id']}/create-new", headers=auth
     )
     assert fallback.status_code == 201
+
+
+def test_replacing_rejected_candidate_starts_new_and_clears_rejection_state(
+    client, auth, fixed_extraction, admin_login
+):
+    cid, review = _stage_soft_duplicate(
+        client, auth, fixed_extraction, "restart-rejected-a", "restart-rejected-b",
+        phone="0891110099",
+    )
+    client.put(f"/api/candidates/{cid}", headers=auth, json={"status": "Interview"})
+    rejected = client.put(f"/api/candidates/{cid}", headers=auth, json={"status": "Rejected"})
+    assert rejected.status_code == 200, rejected.text
+    response = client.post(f"/api/pending-uploads/{review['pending_upload_id']}/update", headers=auth)
+    assert response.status_code == 200, response.text
+    candidate = response.json()["data"]["candidate"]
+    assert candidate["candidate_id"] == cid
+    assert candidate["status"] == "New"
+    assert candidate["before_rejected_status"] == ""
+    assert candidate["owner_account_id"] == admin_login["account"]["account_id"]
+    history = client.get(f"/api/candidates/{cid}/status-history", headers=auth).json()["data"]
+    assert history[0]["from_status"] == "Rejected"
+    assert history[0]["to_status"] == "New"
+    assert history[0]["changed_by"] == admin_login["account"]["account_id"]

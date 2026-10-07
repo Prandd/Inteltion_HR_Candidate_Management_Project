@@ -286,3 +286,35 @@ backend/
   requirements.txt
   .env.example
 ```
+
+## Candidate ownership
+
+The original CV uploader owns a newly created candidate. Re-uploading or merging
+into an existing candidate keeps its current owner. A pending upload resolved as
+create-new retains the original uploader and original import timestamp.
+
+Only the current owner can call `POST /api/candidates/{id}/transfer-ownership`
+with `{ "new_owner_account_id": "...", "reason": "optional" }`. Admin accounts
+also follow this rule. The recipient must be active and different from the owner.
+Owner changes and audit entries are committed together; concurrent transfers
+cannot overwrite a completed transfer by the previous owner.
+
+`GET /api/candidates/{id}/ownership-options` lets the current owner select another
+active user and returns only account ID, display name, and username. Account
+administration stays admin-only. Ownership history includes the original import
+and every transfer, with actor, timestamp, optional reason, and owner names.
+Status history also includes the actor's display name.
+
+The candidate detail page displays the current owner and transfer form for that
+owner. Its existing Status History & Audit Trail combines ownership and status
+events, newest first, using the viewer's local time. Existing records without
+ownership history do not receive invented import events.
+
+### Replace a duplicate CV
+
+Choosing **Replace & restart** in duplicate review updates the existing candidate's
+CV details and stores a new resume version, then resets status to **New** for a new
+application attempt. The status transition is recorded with the acting user and
+reason `Application restarted by replacing CV`. Rejection state is cleared;
+existing owner, position, HR notes, and audit history remain on the same record.
+Creating a new candidate still creates a separate record.

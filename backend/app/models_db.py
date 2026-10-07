@@ -236,9 +236,7 @@ class OwnershipHistory(Base):
     The very first row for a candidate (written at creation, alongside the
     StatusHistory "created by upload" row) has `from_owner_account_id = NULL`
     and records who originally imported the CV. Every later row is a transfer:
-    `changed_by` is whoever performed the transfer (the outgoing owner, or an
-    admin overriding it - see the round-5 decision in CHANGELOG.md), which can
-    differ from `from_owner_account_id` when an admin does the moving.
+    `changed_by` is the outgoing owner. Only that account can transfer ownership.
     """
 
     __tablename__ = "ownership_history"

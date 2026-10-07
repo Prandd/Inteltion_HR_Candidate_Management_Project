@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_account
 from ..database import get_db
 from ..models_db import Candidate, CommentLog, HRAccount, utcnow
+from ..services import owner_names_for
 from ..schemas import (
     COMMENT_TYPE_VALUES,
     DEFAULT_COMMENT_TYPE_FOR_ROLE,
@@ -78,7 +79,9 @@ def list_comments(
     if comment_type:
         query = query.filter(CommentLog.comment_type == comment_type)
     rows = query.order_by(CommentLog.commented_at.desc()).all()
-    return {"data": [_out(r) for r in rows], "error": None}
+    names = owner_names_for(db, [r.author_account_id for r in rows])
+    return {"data": [dict(_out(r), author_name=names.get(r.author_account_id) or r.author_name)
+                     for r in rows], "error": None}
 
 
 @router.post("/candidates/{candidate_id}/comments", status_code=201)

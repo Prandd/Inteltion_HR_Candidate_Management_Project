@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime
+
+from fastapi import HTTPException
 
 from sqlalchemy.orm import Session
 
@@ -329,6 +332,7 @@ def record_ownership_change(
     to_owner_account_id: str,
     changed_by: str,
     reason: str = "",
+    changed_at: datetime | None = None,
 ) -> None:
     """One row per assignment/transfer. The very first call for a candidate (at
     creation) passes `from_owner_account_id=None`. Added to the session, NOT
@@ -339,7 +343,7 @@ def record_ownership_change(
         from_owner_account_id=from_owner_account_id,
         to_owner_account_id=to_owner_account_id,
         changed_by=changed_by,
-        changed_at=utcnow(),
+        changed_at=changed_at or utcnow(),
         reason=reason or "",
     ))
 
@@ -351,8 +355,11 @@ def assign_initial_owner(db: Session, candidate: Candidate, owner_account_id: st
     call this - ownership is a fact about who brought the candidate in, not
     about who most recently touched the record (round-5 decision)."""
     candidate.owner_account_id = owner_account_id
+    if candidate.created_at is None:
+        candidate.created_at = utcnow()
     record_ownership_change(db, candidate.candidate_id, None, owner_account_id,
-                            changed_by=owner_account_id, reason="created by upload")
+                            changed_by=owner_account_id, reason="created by upload",
+                            changed_at=candidate.created_at)
 
 
 def transfer_ownership(
@@ -363,11 +370,19 @@ def transfer_ownership(
     reason: str = "",
 ) -> None:
     """Round 5 - move ownership to someone else. Caller (router) has already
-    checked that `changed_by` is allowed to do this (the current owner, or an
-    admin) and that `new_owner_account_id` is a real, active account."""
+    checked that `changed_by` is the current owner and that
+    `new_owner_account_id` is a real, active account."""
     old_owner = candidate.owner_account_id
-    candidate.owner_account_id = new_owner_account_id
-    candidate.updated_at = utcnow()
+    # Compare-and-set prevents simultaneous requests from the outgoing owner
+    # from both succeeding and producing an inaccurate ownership chain.
+    updated = db.query(Candidate).filter(
+        Candidate.candidate_id == candidate.candidate_id,
+        Candidate.owner_account_id == changed_by,
+    ).update({"owner_account_id": new_owner_account_id, "updated_at": utcnow()},
+             synchronize_session=False)
+    if updated != 1:
+        raise HTTPException(status_code=409, detail="Ownership has changed. Refresh and try again.")
+    db.refresh(candidate)
     record_ownership_change(db, candidate.candidate_id, old_owner,
                             new_owner_account_id, changed_by, reason=reason)
 

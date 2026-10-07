@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isAxiosError } from "axios";
 import { useNavigate, Navigate } from "react-router-dom";
 import api from "../api/axios";
 
@@ -63,8 +64,19 @@ function Login() {
             navigate("/", {
                 replace: true
             });
-        } catch {
-            setError("Invalid username or password");
+        } catch (err) {
+            if (isAxiosError(err)) {
+                const message = err.response?.data?.error;
+                if (!err.response) {
+                    setError("Cannot connect to the backend. Check that localhost:8000 is running and use http://localhost:5173/login.");
+                } else if (typeof message === "string" && message) {
+                    setError(message);
+                } else {
+                    setError("Login failed. Please try again.");
+                }
+            } else {
+                setError("Unable to complete login. Please refresh and try again.");
+            }
         } finally {
             setIsLoading(false);
         }

@@ -13,6 +13,7 @@ import ResumeSection from "../components/candidate/ResumeSection";
 import StatusHistorySection from "../components/candidate/StatusHistorySection";
 import CommentSection from "../components/candidate/CommentSection";
 import SectionCard from "../components/candidate/SectionCard";
+import OwnershipSection from "../components/candidate/OwnershipSection";
 
 function CandidateDetail() {
     const { id } = useParams();
@@ -106,12 +107,14 @@ function CandidateDetail() {
                         </SectionCard>
 
                         <CommentSection
+                            key={candidate.candidate_id}
                             candidate={candidate}
                             onUpdate={fetchCandidate}
                         />
                     </div>
 
                     <div className="col-span-4 space-y-6">
+                        <OwnershipSection candidate={candidate} onUpdate={fetchCandidate} />
                         <ContactSection candidate={candidate} />
 
                         <ResumeSection candidate={candidate} />
