@@ -12,17 +12,7 @@ from ..config import settings
 from ..database import get_db
 
 
-LLM_SERVICE_PATH = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "../../../llm-service/cv-parsing"
-    )
-)
-
-if LLM_SERVICE_PATH not in sys.path:
-    sys.path.insert(0, LLM_SERVICE_PATH)
-
-from extractor import extract_candidate
+from ..llm_client import extract_candidate
 
 from ..models_db import (
     Candidate,
