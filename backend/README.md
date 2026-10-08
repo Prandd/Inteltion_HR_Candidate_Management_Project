@@ -7,11 +7,10 @@
 >
 > ✅ **Tested** — 127/127 `pytest` cases pass on Python 3.11.9 (Windows), plus a live `uvicorn`
 > boot against a **real Azure Blob Storage account** (upload, SAS link, private-container check),
-> and an Alembic run of the original round-4/5 migrations against a database built to the round-3 schema —
+> and an Alembic run of all five migrations against a database built to the round-3 schema —
 > covering the new tables and columns, the `CV rejected` → `Rejected` rename, the
-> `email_normalized` backfill, duplicate-email cleanup, the round-5 candidate-ownership
-> backfill, and `downgrade base`. Migration 0006 later removes the email UNIQUE index so a
-> reviewed re-application can use the same email; it was separately exercised on the local demo DB.
+> `email_normalized` backfill, the duplicate-email cleanup plus UNIQUE index, the round-5
+> candidate-ownership backfill, and `downgrade base`.
 >
 > Still unverified: the Docker image build (no Docker on the author's machine).
 
@@ -169,23 +168,20 @@ Send `Authorization: Bearer <jwt>` on every `/api/*` call except `/health`. Miss
 
 Every response: `{ "data": ..., "error": null }` on success, `{ "data": null, "error": "message" }` on failure.
 Errors: `400` validation, `401` token, `403` not the owner / wrong role, `404` unknown id,
-`409` duplicate username or stale pending decision, `429` login rate limit, `500` unexpected.
+`409` duplicate username or email, `429` login rate limit, `500` unexpected.
 
-### Re-uploading a CV and application cycles
+### Re-uploading a CV (round 4)
 
-A matching CV is held for HR review before any candidate record is changed. An exact normalized
-email match or a soft match (phone, or name + position) enters `needs_review[]`; a file with no
-match is created immediately. HR can update the matched record or create a separate application
-cycle, including when the email is the same. Migration `0006_application_cycles` removes the
-unique index on `email_normalized` to allow that second choice.
+A file whose extracted email (lowercased, trimmed) matches an existing candidate **updates that
+record** instead of creating a second one.
 
 | Field group | On re-upload |
 |---|---|
-| `full_name` `email` `phone` `summary` `skills` `experience` `experience_total` `education` `current_salary` `expected_salary` `extraction_confidence` `raw_text_snippet` | **overwritten** from the new CV after HR chooses Update Record |
-| `resume_url` `resume_filename` `upload_status` | **overwritten** after HR chooses Update Record (the old file is kept as a version) |
+| `full_name` `email` `phone` `summary` `skills` `experience` `experience_total` `education` `current_salary` `expected_salary` `extraction_confidence` `raw_text_snippet` | **overwritten** from the new CV |
+| `resume_url` `resume_filename` `upload_status` | **overwritten** (the old file is kept as a version) |
 | `status` `before_rejected_status` `applied_position` `location` | **preserved** - never touched by an upload |
-| `candidate_id` `created_at` | **preserved** on update; a new cycle gets a separate candidate ID and timestamps |
-| comments | **untouched by design** on update - they live in `comment_logs`, keyed on `candidate_id` |
+| `candidate_id` `created_at` | **preserved** |
+| comments | **untouched by design** - they live in `comment_logs`, keyed on the preserved `candidate_id` |
 
 Guard: a field the new CV extracted as empty does **not** wipe a value the old one had.
 
@@ -195,22 +191,20 @@ The match key is the normalized email, and there are three outcomes - not two:
 
 | What the upload found | What happens |
 |---|---|
-| **Exact** normalized-email match | **stops** - HR chooses update or create a new application cycle |
+| **Exact** normalized-email match | auto-update, as described above |
 | No match at all | auto-create a new candidate |
 | No email match, but same phone **or** same `full_name` + `applied_position` | **stops** - the file goes to `needs_review[]` and waits for a human |
 
-Matching never auto-merges or auto-creates a duplicate, because a wrong merge overwrites a real
-person's record with no undo. The backend pauses so HR can distinguish a new application cycle from
-an update to the existing record.
+Fuzzy matching never auto-merges and never auto-creates, because both mistakes are bad and only
+one of them is reversible: a wrong merge overwrites a real person's record with no undo, a wrong
+create leaves a duplicate. The third outcome exists so the backend never has to guess between them.
 
-Resolving a pending item applies the same merge policy as a re-upload. `update` does not take a
-candidate id: when several candidates matched, the server updates the one with the newest
-`updated_at`, which is also shown first in the review modal. The review summary includes the
-latest rejection event and live comment when present; the UI calculates a three-month cooldown
-from the rejection date but HR makes the final choice.
+Resolving a pending item applies the *same* merge policy as a normal re-upload - it is not a way
+around the table above. `update` does not take a candidate id: when several candidates matched, the
+server picks the one with the newest `updated_at`, which is the record HR is actually working on.
 
-`email_normalized` is indexed but no longer unique: exact email matches are reviewed before
-updating or creating a distinct application-cycle record. Blank emails remain `NULL`.
+`email_normalized` carries a UNIQUE constraint (migration 0003), with `NULL` - not `""` - for a CV
+with no email, so any number of email-less candidates coexist while a real collision returns `409`.
 
 ### `GET /api/candidates` query params
 
@@ -276,7 +270,7 @@ backend/
                            transfer-ownership + ownership-history + sql-test-score(s)
       comments.py         comment_logs CRUD + the `/candidates/comments/{id}` path alias
       pending_uploads.py  the create-or-update decision queue
-  alembic/            migrations 0001 (new tables) .. 0006 (application cycles)
+  alembic/            migrations 0001 (new tables) .. 0005 (ownership + sql_test_scores)
   scripts/
     migrate_blobs.py        copy blobs between Azure accounts, fix DB paths
     gen_frontend_types.py   regenerate shared-contracts/status.ts

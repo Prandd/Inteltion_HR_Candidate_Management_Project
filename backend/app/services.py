@@ -53,7 +53,8 @@ _MAX_LOGGED_VALUE = 500
 
 
 def normalize_email(email: str | None) -> str | None:
-    """The duplicate-review key. Returns None (not "") for a blank email."""
+    """The F4 duplicate key. Returns None (not "") for a blank email so a unique
+    index can be added later without every blank row colliding."""
     cleaned = (email or "").strip().lower()
     return cleaned or None
 

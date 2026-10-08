@@ -319,6 +319,7 @@ def test_update_when_every_match_was_deleted_says_use_create_new(
         f"/api/pending-uploads/{review['pending_upload_id']}/create-new", headers=auth
     )
     assert fallback.status_code == 201
+<<<<<<< HEAD
 
 
 def test_replacing_rejected_candidate_starts_new_and_clears_rejection_state(
@@ -342,3 +343,5 @@ def test_replacing_rejected_candidate_starts_new_and_clears_rejection_state(
     assert history[0]["from_status"] == "Rejected"
     assert history[0]["to_status"] == "New"
     assert history[0]["changed_by"] == admin_login["account"]["account_id"]
+=======
+>>>>>>> origin/feature/backend

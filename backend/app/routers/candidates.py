@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_account
@@ -201,6 +202,45 @@ def update_candidate(
         )
 
     row.updated_at = datetime.now(timezone.utc)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Only the email_normalized UNIQUE constraint (added in migration 0003)
+        # can fire here. Without this, the caller would see a bare 500 for what
+        # is actually an ordinary, expected conflict.
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Email '{data['email']}' is already used by another candidate",
+        )
+    db.refresh(row)
+    return {"data": _to_out(row, db), "error": None}
+
+
+@router.post("/candidates/{candidate_id}/restore")
+def restore_candidate(
+    candidate_id: str,
+    payload: StatusChangeRequest | None = None,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """F5 - undo a rejection: move the candidate back to the stage they held
+    before they were rejected. This is the reason before_rejected_status exists."""
+    row = _get_or_404(db, candidate_id)
+    if row.status not in REJECTED_STATES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Candidate '{candidate_id}' is not in a rejected state",
+        )
+    target = row.before_rejected_status or "New"
+    if target not in STATUS_SET:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot restore: '{target}' is not a valid status",
+        )
+
+    apply_status_change(db, row, target, account.account_id,
+                        reason=(payload.reason if payload else "") or "restored from rejection")
     db.commit()
     db.refresh(row)
     return {"data": _to_out(row, db), "error": None}

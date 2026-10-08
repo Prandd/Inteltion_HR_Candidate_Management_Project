@@ -44,9 +44,11 @@ class Candidate(Base):
     email = Column(String, nullable=False, default="")
     # F4 - lowercased/trimmed `email`, kept in sync by normalize_email() at every
     # write. The duplicate-detection key. NULL (not "") when there is no email,
-    # so email-less candidates stay distinct. Multiple application cycles may
-    # share a normalized email; matching is reviewed before update or creation.
-    email_normalized = Column(String(255), nullable=True, index=True)
+    # so two email-less candidates never collide on the unique constraint below.
+    # UNIQUE as of migration 0003 - see that file for why it could not be added
+    # in round 4 (existing DBs could already hold duplicate emails from before
+    # F4 existed).
+    email_normalized = Column(String(255), nullable=True, unique=True, index=True)
     phone = Column(String, nullable=False, default="")
     location = Column(String, nullable=False, default="")
     applied_position = Column(String, nullable=False, default="")
@@ -236,7 +238,9 @@ class OwnershipHistory(Base):
     The very first row for a candidate (written at creation, alongside the
     StatusHistory "created by upload" row) has `from_owner_account_id = NULL`
     and records who originally imported the CV. Every later row is a transfer:
-    `changed_by` is the outgoing owner. Only that account can transfer ownership.
+    `changed_by` is whoever performed the transfer (the outgoing owner, or an
+    admin overriding it - see the round-5 decision in CHANGELOG.md), which can
+    differ from `from_owner_account_id` when an admin does the moving.
     """
 
     __tablename__ = "ownership_history"
