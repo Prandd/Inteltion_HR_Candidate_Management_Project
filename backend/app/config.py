@@ -3,6 +3,14 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# Bundled copy of the seed fixture (backend/contracts/). The repo-root
+# shared-contracts/ folder is outside the backend root, so it is not shipped
+# in a Vercel services deploy. Keep the copy in sync: python scripts/sync_contracts.py
+_BUNDLED_SEED = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "contracts", "mock-candidates.json"
+)
+
+
 class Settings(BaseSettings):
     """All runtime config. Reads backend/.env if present; every value has a
     working default so the mock backend runs with no .env file at all."""
@@ -14,7 +22,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/dev.db"
     cors_origins: str = "http://localhost:5173,http://localhost:5174"
     upload_dir: str = "./data/uploads"
-    seed_file: str = "../shared-contracts/mock-candidates.json"
+    seed_file: str = _BUNDLED_SEED
     api_base_url: str = "http://localhost:8000"
     max_upload_mb: int = 10
 

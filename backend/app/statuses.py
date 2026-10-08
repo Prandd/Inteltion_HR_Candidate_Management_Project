@@ -49,6 +49,8 @@ def _contract_candidates() -> list[str]:
     """Where schema.json might live, most specific first.
 
     - repo layout:   backend/app/statuses.py -> ../../shared-contracts/
+    - bundled copy:  backend/contracts/ (what a services deploy ships - the
+                     repo-root shared-contracts/ is outside the backend root)
     - docker-compose mounts ./shared-contracts at /contracts (read-only)
     - CONTRACT_SCHEMA_FILE overrides both
     """
@@ -57,6 +59,7 @@ def _contract_candidates() -> list[str]:
     if env_path:
         paths.append(env_path)
     paths.append(os.path.join(_HERE, "..", "..", "shared-contracts", "schema.json"))
+    paths.append(os.path.join(_HERE, "..", "contracts", "schema.json"))
     paths.append(os.path.join("/contracts", "schema.json"))
     return paths
 
