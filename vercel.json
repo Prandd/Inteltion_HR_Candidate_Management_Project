@@ -3,7 +3,10 @@
   "services": {
     "dashboard": {
       "root": "frontend/dashboard",
-      "framework": "vite"
+      "framework": "vite",
+      "rewrites": [
+        { "source": "/(.*)", "destination": "/index.html" }
+      ]
     }
   },
   "rewrites": [
