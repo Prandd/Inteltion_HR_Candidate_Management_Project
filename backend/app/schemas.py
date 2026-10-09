@@ -480,10 +480,10 @@ class OwnershipHistoryOut(BaseModel):
 
 
 class OwnershipOptionOut(BaseModel):
-    """GET /api/candidates/{id}/ownership-options - active accounts the
-    current owner (or an admin) could transfer this candidate to. Excludes
-    the current owner; deactivated accounts never qualify as a target
-    either (transfer-ownership itself rejects those at write time)."""
+    """Lightweight active-account shape for UI pickers - shared by
+    GET /api/candidates/{id}/ownership-options (transfer targets, excludes
+    the current owner) and GET /api/hr-accounts/options (every active
+    account, for the dashboard's owner filter)."""
 
     model_config = ConfigDict(from_attributes=True)
 

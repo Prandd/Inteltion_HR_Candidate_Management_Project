@@ -9,15 +9,42 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..auth import require_role
+from ..auth import get_current_account, require_role
 from ..database import get_db
 from ..models_db import HRAccount, utcnow
-from ..schemas import HRAccountCreate, HRAccountOut, HRAccountUpdate, ResetPasswordRequest
+from ..schemas import (
+    HRAccountCreate,
+    HRAccountOut,
+    HRAccountUpdate,
+    OwnershipOptionOut,
+    ResetPasswordRequest,
+)
 from ..security import hash_password
 
 router = APIRouter(
     tags=["hr-accounts"], dependencies=[Depends(require_role("admin"))]
 )
+
+# Separate from `router` on purpose: every route above is admin-only (the
+# router-level dependency), but any logged-in account needs to see who the
+# other active accounts are for things like the dashboard's owner filter and
+# the ownership-transfer dropdown - just names, never email/role/password.
+options_router = APIRouter(tags=["hr-accounts"])
+
+
+@options_router.get("/hr-accounts/options")
+def list_account_options(
+    db: Session = Depends(get_db),
+    _account: HRAccount = Depends(get_current_account),
+):
+    """Every active HR account, for UI pickers (owner filter, ownership
+    transfer) that need the full roster - not just accounts who happen to
+    own a candidate already loaded on the page."""
+    rows = [a for a in db.query(HRAccount).order_by(HRAccount.full_name.asc()).all() if a.is_active]
+    return {
+        "data": [OwnershipOptionOut.model_validate(a).model_dump(mode="json") for a in rows],
+        "error": None,
+    }
 
 
 def _out(row: HRAccount) -> dict:

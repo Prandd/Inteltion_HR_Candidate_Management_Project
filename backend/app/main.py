@@ -68,6 +68,7 @@ if isinstance(storage, LocalDiskStorage):
     app.mount("/files", StaticFiles(directory=settings.upload_dir), name="files")
 app.include_router(auth.router, prefix="/api")
 app.include_router(hr_accounts.router, prefix="/api")
+app.include_router(hr_accounts.options_router, prefix="/api")
 app.include_router(candidates.router, prefix="/api")
 app.include_router(comments.router, prefix="/api")
 app.include_router(pending_uploads.router, prefix="/api")

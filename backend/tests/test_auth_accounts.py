@@ -116,6 +116,26 @@ def test_non_admin_cannot_reach_account_management(client, make_account):
     assert created.status_code == 403
 
 
+def test_account_options_lists_active_accounts_for_any_logged_in_role(
+    client, auth, make_account
+):
+    """GET /api/hr-accounts/options feeds UI pickers (owner filter,
+    ownership transfer) that need the full roster, not just admin-only
+    /api/hr-accounts - any logged-in role should be able to read it."""
+    hr_account, hr_headers = make_account(role="hr")
+
+    r = client.get("/api/hr-accounts/options", headers=hr_headers)
+    assert r.status_code == 200
+    accounts = r.json()["data"]
+    assert any(a["account_id"] == hr_account["account_id"] for a in accounts)
+    assert all(set(a.keys()) == {"account_id", "full_name", "username"} for a in accounts)
+
+    deactivated_id = hr_account["account_id"]
+    client.delete(f"/api/hr-accounts/{deactivated_id}", headers=auth)
+    r2 = client.get("/api/hr-accounts/options", headers=auth)
+    assert all(a["account_id"] != deactivated_id for a in r2.json()["data"])
+
+
 def test_duplicate_username_and_email_are_rejected(client, auth, make_account):
     account, _ = make_account(role="hr")
     dup_username = client.post(
