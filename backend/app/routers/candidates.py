@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_account
 from ..config import settings
 from ..database import get_db
-from ..extraction import extract_candidate  # MOCK - swap for llm-service on Day 6
+from ..llm_client import extract_candidate  # real llm-service if available, else MOCK fallback
 from ..models_db import (
     Candidate,
     CandidateChangeLog,
@@ -525,12 +525,11 @@ async def upload_candidates(
         # what decides which record this file belongs to. A failure here means we
         # never learned the email, so no existing record can have been touched.
         try:
-            # ---------------- MOCK EXTRACTION BOUNDARY ----------------
-            # Day 6: swap the `extract_candidate` import above for Member 4's
-            # llm-service function. Frozen signature:
-            #   extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict
+            # llm_client.extract_candidate() picks real llm-service extraction
+            # when it's reachable (LLM_SERVICE_URL, or the sibling llm-service/
+            # package in-process) and falls back to the deterministic mock
+            # otherwise - see app/llm_client.py.
             raw = extract_candidate(content, filename=name)
-            # ---------------------------------------------------------
             fields = CandidateBase.model_validate(raw).model_dump(mode="json")
         except Exception as exc:
             # Keep a Failed row so HR can see the file arrived and delete/retry.
