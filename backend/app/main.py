@@ -12,7 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import models_db  # noqa: F401  - registers ORM models on Base
 from .config import ensure_dirs, settings
 from .database import Base, SessionLocal, engine
-from .routers import auth, candidates, comments, hr_accounts, pending_uploads
+from .routers import auth, candidates, comments, hr_accounts, pending_uploads, positions
 from .seed import seed_if_empty
 from .statuses import STATUS_VALUES, assert_valid_db_statuses
 from .storage import LocalDiskStorage, log_active_storage, storage
@@ -72,6 +72,7 @@ app.include_router(hr_accounts.options_router, prefix="/api")
 app.include_router(candidates.router, prefix="/api")
 app.include_router(comments.router, prefix="/api")
 app.include_router(pending_uploads.router, prefix="/api")
+app.include_router(positions.router, prefix="/api")
 
 
 @app.get("/health")

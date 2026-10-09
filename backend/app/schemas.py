@@ -523,3 +523,46 @@ class SqlTestScoreOut(BaseModel):
     raw_payload: dict | None = None
     recorded_at: datetime
     recorded_by: str | None = None
+
+
+# ---------------------------------------------------- positions
+#
+# Reverse-engineered from the frontend's Positions/PositionDetail/
+# PositionRequirements pages - there was no prior contract for this at all.
+# `id`, not `position_id`: that's the field name every one of those pages
+# already reads, and this is new enough that matching the frontend costs
+# nothing, unlike renaming an established field.
+
+
+class PositionCreate(BaseModel):
+    title: str
+    department: str = ""
+    description: str = ""
+    location: str = ""
+    skills: list[str] = Field(default_factory=list)
+
+
+class PositionSummaryOut(BaseModel):
+    """GET /api/positions list item - matches frontend/dashboard's
+    Positions.tsx `Position` interface exactly."""
+
+    id: str
+    title: str
+    department: str = ""
+    location: str = ""
+    status: str = "Open"
+    candidate_count: int = 0
+
+
+class PositionOut(BaseModel):
+    """GET /api/positions/{id} - matches PositionDetail.tsx's `Position`
+    interface exactly."""
+
+    id: str
+    title: str
+    department: str = ""
+    description: str = ""
+    location: str = ""
+    skills: list[str] = Field(default_factory=list)
+    status: str = "Open"
+    candidate_count: int = 0

@@ -308,3 +308,30 @@ class CandidateChangeLog(Base):
     changed_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     changed_by = Column(String, nullable=False, default="")  # hr_accounts.account_id
     source = Column(String, nullable=False, default="manual_edit")  # reupload | manual_edit
+
+
+class Position(Base):
+    """Job openings/requisitions. Reverse-engineered from the frontend's
+    Positions/PositionDetail/PositionRequirements pages, which called
+    GET/POST /positions against a resource that never existed on this
+    branch - no prior contract or schema to match, just those three pages'
+    actual field usage.
+
+    `candidate_count` is never stored here - it's computed at read time by
+    counting candidates whose `applied_position` text matches `title`,
+    since candidates don't carry a position_id (applied_position is a free
+    -text field, not a foreign key - matching is best-effort by name)."""
+
+    __tablename__ = "positions"
+
+    position_id = Column(String(36), primary_key=True)  # uuid4
+    title = Column(String, nullable=False)
+    department = Column(String, nullable=False, default="")
+    location = Column(String, nullable=False, default="")
+    description = Column(Text, nullable=False, default="")
+    skills = Column(JSON, nullable=False, default=list)
+    status = Column(String, nullable=False, default="Open")  # Open | Closed
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
+    )
