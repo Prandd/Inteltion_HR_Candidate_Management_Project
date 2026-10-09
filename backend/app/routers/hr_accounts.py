@@ -126,7 +126,7 @@ def deactivate_account(
         db.query(HRAccount)
         .filter(
             HRAccount.role == "admin",
-            HRAccount.is_active.is_(True),
+            HRAccount.is_active == True,  # noqa: E712 - SQL Server rejects `IS <bool literal>`; only NULL works with IS
             HRAccount.account_id != account_id,
         )
         .count()

@@ -288,7 +288,7 @@ def get_ownership_options(
 
     accounts = (
         db.query(HRAccount)
-        .filter(HRAccount.is_active.is_(True), HRAccount.account_id != row.owner_account_id)
+        .filter(HRAccount.is_active == True, HRAccount.account_id != row.owner_account_id)  # noqa: E712 - SQL Server rejects `IS <bool literal>`; only NULL works with IS
         .order_by(HRAccount.full_name.asc())
         .all()
     )
