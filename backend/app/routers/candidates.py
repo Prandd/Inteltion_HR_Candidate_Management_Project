@@ -286,12 +286,17 @@ def get_ownership_options(
             detail="Only the current owner or an admin can view transfer options",
         )
 
-    accounts = (
-        db.query(HRAccount)
-        .filter(HRAccount.is_active == True, HRAccount.account_id != row.owner_account_id)  # noqa: E712 - SQL Server rejects `IS <bool literal>`; only NULL works with IS
+    # is_active filtered in Python, not SQL: comparing it to the bool literal
+    # True compiles to `IS 1`, which SQL Server rejects outright (IS only
+    # accepts NULL there) - caught live against Azure SQL on this endpoint.
+    accounts = [
+        a
+        for a in db.query(HRAccount)
+        .filter(HRAccount.account_id != row.owner_account_id)
         .order_by(HRAccount.full_name.asc())
         .all()
-    )
+        if a.is_active
+    ]
     return {
         "data": [OwnershipOptionOut.model_validate(a).model_dump(mode="json") for a in accounts],
         "error": None,

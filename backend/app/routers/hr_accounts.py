@@ -36,10 +36,12 @@ def list_accounts(
     db: Session = Depends(get_db),
     is_active: bool | None = Query(None, description="filter on active/deactivated"),
 ):
-    query = db.query(HRAccount)
+    # Filtered in Python, not SQL: comparing a Boolean column to the Python
+    # True/False singleton compiles to `IS 1`/`IS 0` in SQLAlchemy, and SQL
+    # Server's IS only accepts NULL - `== is_active` 500s there every time.
+    rows = db.query(HRAccount).order_by(HRAccount.created_at.asc()).all()
     if is_active is not None:
-        query = query.filter(HRAccount.is_active == is_active)
-    rows = query.order_by(HRAccount.created_at.asc()).all()
+        rows = [r for r in rows if r.is_active == is_active]
     return {"data": [_out(r) for r in rows], "error": None}
 
 
@@ -122,14 +124,14 @@ def deactivate_account(
             status_code=400,
             detail="You cannot deactivate the account you are logged in with",
         )
-    remaining_admins = (
-        db.query(HRAccount)
-        .filter(
-            HRAccount.role == "admin",
-            HRAccount.is_active == True,  # noqa: E712 - SQL Server rejects `IS <bool literal>`; only NULL works with IS
-            HRAccount.account_id != account_id,
+    # Filtered in Python: comparing is_active to a bool literal in SQL hits
+    # the same `IS 1` problem noted in list_accounts() above.
+    remaining_admins = sum(
+        1
+        for a in db.query(HRAccount).filter(
+            HRAccount.role == "admin", HRAccount.account_id != account_id
         )
-        .count()
+        if a.is_active
     )
     if row.role == "admin" and row.is_active and remaining_admins == 0:
         raise HTTPException(
