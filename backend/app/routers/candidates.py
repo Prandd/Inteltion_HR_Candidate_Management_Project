@@ -157,10 +157,16 @@ def update_candidate(
 ):
     row = _get_or_404(db, candidate_id)
 
-    data = payload.model_dump(mode="json")
-    if data["email"] and "@" not in data["email"]:
+    # exclude_unset, not a blind model_dump(): every CandidateBase field has a
+    # default ("" / 0 / []), so a caller that only means to change `status`
+    # (the dashboard's status dropdown does exactly this) would otherwise
+    # have every omitted field silently reset to its default - wiping
+    # full_name, skills, experience, etc. - instead of getting a validation
+    # error that would have caught the mistake.
+    data = payload.model_dump(mode="json", exclude_unset=True)
+    if data.get("email") and "@" not in data["email"]:
         raise HTTPException(status_code=400, detail="Invalid email format")
-    new_status = data.pop("status")
+    new_status = data.pop("status", row.status)
     if new_status not in STATUS_SET:
         raise HTTPException(
             status_code=400,
@@ -189,7 +195,7 @@ def update_candidate(
         db.rollback()
         raise HTTPException(
             status_code=409,
-            detail=f"Email '{data['email']}' is already used by another candidate",
+            detail=f"Email '{row.email}' is already used by another candidate",
         )
     db.refresh(row)
     return {"data": _to_out(row, db), "error": None}
