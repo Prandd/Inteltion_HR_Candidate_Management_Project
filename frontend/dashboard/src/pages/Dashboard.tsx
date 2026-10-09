@@ -25,6 +25,7 @@ function Dashboard(){
 
     const [candidates,setCandidates] = useState<CandidateSummary[]>([]);
     const [loading,setLoading] = useState(true);
+    const [ownerOptions,setOwnerOptions] = useState<{account_id:string;full_name:string;username:string}[]>([]);
 
     const [search,setSearch] = useState("");
     const [debouncedSearch,setDebouncedSearch] = useState("");
@@ -109,6 +110,26 @@ function Dashboard(){
         }
 
         void loadCandidates();
+        return ()=>{
+            cancelled = true;
+        };
+    },[]);
+
+
+    useEffect(()=>{
+        let cancelled = false;
+
+        // The owner filter's roster, not derived from `candidates`: an
+        // account that doesn't own any candidate on the current page would
+        // otherwise never appear as a filter option at all.
+        api.get("/hr-accounts/options").then(response=>{
+            if(!cancelled && Array.isArray(response.data.data)){
+                setOwnerOptions(response.data.data);
+            }
+        }).catch(error=>{
+            console.error("Failed to fetch owner options", error);
+        });
+
         return ()=>{
             cancelled = true;
         };
@@ -376,12 +397,9 @@ function Dashboard(){
 
 
 
-    const owners = Array.from(new Map(
-        candidates.filter(candidate => candidate.owner_account_id).map(candidate => [
-            candidate.owner_account_id!,
-            candidate.owner_name || candidate.owner_account_id!,
-        ])
-    ).entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    const owners: [string, string][] = ownerOptions
+        .map(account => [account.account_id, account.full_name || account.username] as [string, string])
+        .sort((a, b) => a[1].localeCompare(b[1]));
 
     if(loading){
 
