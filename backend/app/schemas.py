@@ -479,6 +479,19 @@ class OwnershipHistoryOut(BaseModel):
     reason: str = ""
 
 
+class OwnershipOptionOut(BaseModel):
+    """GET /api/candidates/{id}/ownership-options - active accounts the
+    current owner (or an admin) could transfer this candidate to. Excludes
+    the current owner; deactivated accounts never qualify as a target
+    either (transfer-ownership itself rejects those at write time)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    account_id: str
+    full_name: str
+    username: str
+
+
 # ---------------------------------------------------- sql test score (round 5)
 #
 # The external tool's own contract is not confirmed yet - see the model

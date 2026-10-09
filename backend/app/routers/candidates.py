@@ -31,6 +31,7 @@ from ..schemas import (
     CandidateUpdate,
     ChangeLogOut,
     OwnershipHistoryOut,
+    OwnershipOptionOut,
     ResumeVersionOut,
     SqlTestScoreIn,
     SqlTestScoreOut,
@@ -264,6 +265,37 @@ def transfer_candidate_ownership(
     db.commit()
     db.refresh(row)
     return {"data": _to_out(row, db), "error": None}
+
+
+@router.get("/candidates/{candidate_id}/ownership-options")
+def get_ownership_options(
+    candidate_id: str,
+    db: Session = Depends(get_db),
+    account: HRAccount = Depends(get_current_account),
+):
+    """Active accounts the caller could transfer this candidate to - feeds
+    the frontend's "Transfer ownership to" dropdown. Same permission rule as
+    the transfer endpoint itself (current owner or admin): the button is
+    hidden in the UI for anyone else, but the data behind it is gated here
+    too, not just by what the UI chooses to render."""
+    row = _get_or_404(db, candidate_id)
+
+    if account.account_id != row.owner_account_id and account.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only the current owner or an admin can view transfer options",
+        )
+
+    accounts = (
+        db.query(HRAccount)
+        .filter(HRAccount.is_active.is_(True), HRAccount.account_id != row.owner_account_id)
+        .order_by(HRAccount.full_name.asc())
+        .all()
+    )
+    return {
+        "data": [OwnershipOptionOut.model_validate(a).model_dump(mode="json") for a in accounts],
+        "error": None,
+    }
 
 
 @router.get("/candidates/{candidate_id}/ownership-history")
