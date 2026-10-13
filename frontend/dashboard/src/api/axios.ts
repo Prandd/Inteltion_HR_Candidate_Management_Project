@@ -1,7 +1,11 @@
 import axios from "axios";
 
+// VITE_API_BASE_URL (set per-Vercel-project, not per-branch) lets multiple
+// deployments share this same code and point at different backends without
+// touching vercel.json - falls back to the "/api" proxy rewrite for anyone
+// who hasn't set it.
 const api = axios.create({
-    baseURL: "/api",
+    baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
 });
 
 api.interceptors.request.use((config) => {
