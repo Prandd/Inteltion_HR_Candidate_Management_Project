@@ -10,8 +10,6 @@
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://inteltion-backend.salmonglacier-624ac23b.eastasia.azurecontainerapps.io/api/:path*" },
-    { "source": "/health", "destination": "https://inteltion-backend.salmonglacier-624ac23b.eastasia.azurecontainerapps.io/health" },
     { "source": "/(.*)", "destination": { "service": "dashboard" } }
   ]
 }
