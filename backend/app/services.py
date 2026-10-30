@@ -20,6 +20,7 @@ from .models_db import (
     CandidateChangeLog,
     CommentLog,
     HRAccount,
+    IdCounter,
     OwnershipHistory,
     PendingUpload,
     ResumeVersion,
@@ -295,13 +296,21 @@ def store_resume(db: Session, candidate_id: str, filename: str, content: bytes,
 
 
 def next_candidate_id(db: Session) -> str:
-    """7-digit zero-padded running number, one past the highest numeric id in
-    the table ('0000001', '0000002', ...). Good enough for a single-writer
-    MVP - see the round-3 note in CHANGELOG.md about moving this behind a
-    proper sequence if concurrent writers ever show up."""
+    """7-digit zero-padded running number ('0000001', '0000002', ...), never
+    reused: the id_counters high-water mark survives deletes, and the max over
+    existing rows covers databases that predate the counter. Added to the
+    session, NOT committed - the caller's commit claims the id. Good enough for
+    a single-writer MVP - see the round-3 note in CHANGELOG.md about moving
+    this behind a proper sequence if concurrent writers ever show up."""
     ids = db.query(Candidate.candidate_id).all()
     nums = [int(cid) for (cid,) in ids if cid and cid.isdigit()]
-    return f"{(max(nums) + 1) if nums else 1:07d}"
+    counter = db.get(IdCounter, "candidate")
+    if counter is None:
+        counter = IdCounter(name="candidate", last_value=0)
+        db.add(counter)
+    value = max([counter.last_value or 0, *nums]) + 1
+    counter.last_value = value
+    return f"{value:07d}"
 
 
 def owner_name_for(db: Session, owner_account_id: str | None) -> str:

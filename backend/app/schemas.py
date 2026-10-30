@@ -547,6 +547,13 @@ class PositionCreate(BaseModel):
     location: str = ""
     skills: list[str] = Field(default_factory=list)
 
+    @field_validator("title")
+    @classmethod
+    def _non_empty_title(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Title must not be empty")
+        return v.strip()
+
 
 class PositionSummaryOut(BaseModel):
     """GET /api/positions list item - matches frontend/dashboard's

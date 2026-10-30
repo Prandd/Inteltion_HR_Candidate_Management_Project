@@ -98,12 +98,50 @@ def create_account(payload: HRAccountCreate, db: Session = Depends(get_db)):
     return {"data": _out(row), "error": None}
 
 
+def _guard_admin_removal(db: Session, row: HRAccount, caller: HRAccount,
+                         deactivating: bool, demoting: bool) -> None:
+    """Shared by DELETE and PUT - PUT can deactivate (`is_active: false`) or
+    demote (`role` other than admin) too, and must not be a way around these
+    checks."""
+    if not (deactivating or demoting):
+        return
+    if deactivating and row.account_id == caller.account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot deactivate the account you are logged in with",
+        )
+    if row.role != "admin" or not row.is_active:
+        return
+    # Filtered in Python: comparing is_active to a bool literal in SQL hits
+    # the same `IS 1` problem noted in list_accounts() above.
+    remaining_admins = sum(
+        1
+        for a in db.query(HRAccount).filter(
+            HRAccount.role == "admin", HRAccount.account_id != row.account_id
+        )
+        if a.is_active
+    )
+    if remaining_admins == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot deactivate or demote the last active admin account",
+        )
+
+
 @router.put("/hr-accounts/{account_id}")
 def update_account(
-    account_id: str, payload: HRAccountUpdate, db: Session = Depends(get_db)
+    account_id: str,
+    payload: HRAccountUpdate,
+    db: Session = Depends(get_db),
+    caller: HRAccount = Depends(require_role("admin")),
 ):
     row = _get_or_404(db, account_id)
     data = payload.model_dump(exclude_unset=True)
+    _guard_admin_removal(
+        db, row, caller,
+        deactivating=data.get("is_active") is False,
+        demoting=data.get("role") not in (None, "admin"),
+    )
 
     if "email" in data and data["email"]:
         clash = (
@@ -146,24 +184,7 @@ def deactivate_account(
 ):
     """Soft delete - sets is_active = false. See the module docstring."""
     row = _get_or_404(db, account_id)
-    if row.account_id == caller.account_id:
-        raise HTTPException(
-            status_code=400,
-            detail="You cannot deactivate the account you are logged in with",
-        )
-    # Filtered in Python: comparing is_active to a bool literal in SQL hits
-    # the same `IS 1` problem noted in list_accounts() above.
-    remaining_admins = sum(
-        1
-        for a in db.query(HRAccount).filter(
-            HRAccount.role == "admin", HRAccount.account_id != account_id
-        )
-        if a.is_active
-    )
-    if row.role == "admin" and row.is_active and remaining_admins == 0:
-        raise HTTPException(
-            status_code=400, detail="Cannot deactivate the last active admin account"
-        )
+    _guard_admin_removal(db, row, caller, deactivating=True, demoting=False)
 
     row.is_active = False
     row.updated_at = utcnow()

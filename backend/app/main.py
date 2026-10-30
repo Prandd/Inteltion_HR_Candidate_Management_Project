@@ -161,7 +161,10 @@ async def _validation_exception_handler(_request, exc: RequestValidationError):
 
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(_request, exc: Exception):
+    # Logged in full, returned generic: a DB driver error's text carries the
+    # server name, SQL and parameter values, none of which belong in a browser.
+    log.exception("Unhandled error: %s", exc)
     return JSONResponse(
         status_code=500,
-        content={"data": None, "error": f"Internal server error: {exc}"},
+        content={"data": None, "error": "Internal server error"},
     )

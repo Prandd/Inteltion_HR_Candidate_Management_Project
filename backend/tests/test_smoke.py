@@ -195,3 +195,12 @@ def test_delete_allowed_when_done_or_not_uploaded(client, auth):
         assert r.status_code == 200, r.text
         assert r.json()["data"]["deleted"] is True
         assert client.get(f"/api/candidates/{cid}", headers=auth).status_code == 404
+
+
+def test_deleted_candidate_id_is_never_handed_out_again(client, auth, new_candidate):
+    """next_candidate_id() used max(existing)+1, so deleting the newest
+    candidate made the next upload reuse its id."""
+    newest = new_candidate("id-reuse-a")["candidate_id"]
+    assert client.delete(f"/api/candidates/{newest}", headers=auth).status_code == 200
+    following = new_candidate("id-reuse-b")["candidate_id"]
+    assert int(following) > int(newest)

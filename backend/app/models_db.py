@@ -334,3 +334,16 @@ class Position(Base):
     updated_at = Column(
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
     )
+
+
+class IdCounter(Base):
+    """High-water mark for running-number ids. next_candidate_id() used to
+    hand out max(existing id) + 1, so deleting the newest candidate made the
+    next upload reuse its id - and anything still holding the old id (a
+    pending upload's duplicate_candidate_ids, possible_duplicate_of on other
+    rows) silently started pointing at a different person."""
+
+    __tablename__ = "id_counters"
+
+    name = Column(String(50), primary_key=True)
+    last_value = Column(Integer, nullable=False, default=0)

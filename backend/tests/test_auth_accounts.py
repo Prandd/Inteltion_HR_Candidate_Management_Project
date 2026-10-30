@@ -214,3 +214,27 @@ def test_admin_cannot_deactivate_their_own_account(client, auth, admin_login):
 def test_garbage_token_is_401_not_500(client):
     r = client.get("/api/candidates", headers=bearer("not-a-jwt"))
     assert r.status_code == 401
+
+
+def test_put_cannot_be_used_to_deactivate_yourself(client, auth, admin_login):
+    """DELETE refused this; PUT {is_active: false} used to walk straight past it."""
+    me = admin_login["account"]["account_id"]
+    r = client.put(f"/api/hr-accounts/{me}", headers=auth, json={"is_active": False})
+    assert r.status_code == 400, r.text
+    assert client.get("/api/auth/me", headers=auth).status_code == 200
+
+
+def test_put_cannot_demote_or_deactivate_the_last_admin(client, auth, make_account):
+    """The only active admin left must keep both its role and its access."""
+    make_account(role="admin")  # so there is at least one other admin to remove
+    accounts = client.get("/api/hr-accounts", headers=auth).json()["data"]
+    me = client.get("/api/auth/me", headers=auth).json()["data"]["account_id"]
+    # Leave `me` as the only active admin.
+    for a in accounts:
+        if a["role"] == "admin" and a["is_active"] and a["account_id"] != me:
+            assert client.delete(f"/api/hr-accounts/{a['account_id']}",
+                                 headers=auth).status_code == 200
+
+    assert client.put(f"/api/hr-accounts/{me}", headers=auth,
+                      json={"role": "hr"}).status_code == 400
+    assert client.get("/api/auth/me", headers=auth).json()["data"]["role"] == "admin"

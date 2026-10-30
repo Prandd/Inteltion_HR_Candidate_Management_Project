@@ -342,3 +342,30 @@ def test_replacing_rejected_candidate_starts_new_and_clears_rejection_state(
     assert history[0]["from_status"] == "Rejected"
     assert history[0]["to_status"] == "New"
     assert history[0]["changed_by"] == admin_login["account"]["account_id"]
+
+
+def test_a_claimed_item_cannot_be_resolved_twice(client, auth, fixed_extraction):
+    """A double-clicked "Create new": the second request arrives while the
+    first holds the claim, and must get a 409 instead of a second candidate."""
+    from app.database import SessionLocal
+    from app.models_db import PendingUpload
+    from app.routers.pending_uploads import _claim
+
+    _, review = _stage_soft_duplicate(
+        client, auth, fixed_extraction, "claim-a", "claim-b", phone="0891110077",
+    )
+    pid = review["pending_upload_id"]
+    db = SessionLocal()
+    try:
+        _claim(db, db.get(PendingUpload, pid))  # the first click, mid-flight
+    finally:
+        db.close()
+    before = len(client.get("/api/candidates", headers=auth).json()["data"])
+    r = client.post(f"/api/pending-uploads/{pid}/create-new", headers=auth)
+    assert r.status_code == 409
+    assert len(client.get("/api/candidates", headers=auth).json()["data"]) == before
+
+
+def test_position_title_must_not_be_blank(client, auth):
+    r = client.post("/api/positions", headers=auth, json={"title": "   "})
+    assert r.status_code == 400
