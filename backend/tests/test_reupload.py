@@ -12,6 +12,15 @@ from conftest import pdf_bytes, upload
 ALICE = "alice@corp.example.com"
 
 
+def _resolve_update(client, auth, response):
+    review = response.json()["data"]["needs_review"][0]
+    resolved = client.post(
+        f"/api/pending-uploads/{review['pending_upload_id']}/update", headers=auth
+    )
+    assert resolved.status_code == 200, resolved.text
+    return resolved.json()["data"]["candidate"]
+
+
 def test_reupload_updates_instead_of_duplicating(client, auth, fixed_extraction):
     fixed_extraction("alice-v1", email=ALICE, full_name="Alice Tanaka")
     fixed_extraction("alice-v2", email=ALICE, full_name="Alice Tanaka-Smith")
@@ -24,10 +33,10 @@ def test_reupload_updates_instead_of_duplicating(client, auth, fixed_extraction)
     assert second.status_code == 201, second.text
     data = second.json()["data"]
 
-    assert data["created"] == [], "a known candidate must not be created again"
-    assert [c["candidate_id"] for c in data["updated"]] == [cid]
-    assert data["count"] == 1
-    assert data["updated"][0]["full_name"] == "Alice Tanaka-Smith"
+    assert data["created"] == []
+    assert data["updated"] == []
+    assert data["needs_review"][0]["duplicate_candidates"][0]["candidate_id"] == cid
+    assert _resolve_update(client, auth, second)["full_name"] == "Alice Tanaka-Smith"
 
 
 def test_email_match_ignores_case_and_whitespace(client, auth, fixed_extraction):
@@ -37,7 +46,37 @@ def test_email_match_ignores_case_and_whitespace(client, auth, fixed_extraction)
     cid = upload(client, auth, ("bob.pdf", "bob-v1")).json()["data"]["created"][0]["candidate_id"]
     second = upload(client, auth, ("bob2.pdf", "bob-v2"))
 
-    assert [c["candidate_id"] for c in second.json()["data"]["updated"]] == [cid]
+    assert second.json()["data"]["needs_review"][0]["duplicate_candidates"][0]["candidate_id"] == cid
+    assert _resolve_update(client, auth, second)["candidate_id"] == cid
+
+
+def test_duplicate_review_includes_rejection_and_latest_comment(
+    client, auth, fixed_extraction
+):
+    fixed_extraction("summary-v1", email="summary@corp.example.com")
+    fixed_extraction("summary-v2", email="summary@corp.example.com")
+    cid = upload(client, auth, ("summary-v1.pdf", "summary-v1")).json()["data"]["created"][0]["candidate_id"]
+
+    body = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
+    body["status"] = "Interview"
+    assert client.put(f"/api/candidates/{cid}", headers=auth, json=body).status_code == 200
+    body = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
+    body["status"] = "Rejected"
+    assert client.put(f"/api/candidates/{cid}", headers=auth, json=body).status_code == 200
+    assert client.post(
+        f"/api/candidates/{cid}/comments",
+        headers=auth,
+        json={"comment": "Revisit after the interview feedback."},
+    ).status_code == 201
+
+    review = upload(client, auth, ("summary-v2.pdf", "summary-v2")).json()["data"]["needs_review"][0]
+    hint = review["duplicate_candidates"][0]
+    assert hint["candidate_id"] == cid
+    assert hint["created_at"]
+    assert hint["rejected_at"]
+    assert hint["rejected_from_status"] == "Interview"
+    assert hint["latest_comment"] == "Revisit after the interview feedback."
+    assert hint["latest_comment_by"]
 
 
 def test_a_different_email_is_a_different_person(client, auth, fixed_extraction):
@@ -50,6 +89,22 @@ def test_a_different_email_is_a_different_person(client, auth, fixed_extraction)
     assert len(first.json()["data"]["created"]) == 1
     assert len(second.json()["data"]["created"]) == 1
     assert second.json()["data"]["updated"] == []
+
+
+def test_exact_email_can_create_a_separate_application_cycle(client, auth, fixed_extraction):
+    fixed_extraction("cycle-v1", email="cycle@corp.example.com", full_name="Cycle Person")
+    fixed_extraction("cycle-v2", email="cycle@corp.example.com", full_name="Cycle Person")
+
+    old_id = upload(client, auth, ("cycle-1.pdf", "cycle-v1")).json()["data"]["created"][0]["candidate_id"]
+    review = upload(client, auth, ("cycle-2.pdf", "cycle-v2")).json()["data"]["needs_review"][0]
+    resolved = client.post(
+        f"/api/pending-uploads/{review['pending_upload_id']}/create-new", headers=auth
+    )
+
+    assert resolved.status_code == 201, resolved.text
+    new_candidate = resolved.json()["data"]["candidate"]
+    assert new_candidate["candidate_id"] != old_id
+    assert old_id in new_candidate["possible_duplicate_of"]
 
 
 def test_reupload_preserves_hr_owned_and_identity_fields(client, auth, fixed_extraction):
@@ -68,11 +123,13 @@ def test_reupload_preserves_hr_owned_and_identity_fields(client, auth, fixed_ext
     body["location"] = "Phuket, Thailand"
     assert client.put(f"/api/candidates/{cid}", headers=auth, json=body).status_code == 200
 
-    upload(client, auth, ("erin-v2.pdf", "erin-v2"))
+    _resolve_update(client, auth, upload(client, auth, ("erin-v2.pdf", "erin-v2")))
 
     after = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
-    # HR-owned: untouched, even though the new CV carried a different position.
-    assert after["status"] == "Interview"
+    # Replacing the CV restarts the application cycle at New...
+    assert after["status"] == "New"
+    # ...but the other HR-owned fields stay, even though the new CV carried a
+    # different position.
     assert after["applied_position"] == "Staff Platform Engineer"
     assert after["location"] == "Phuket, Thailand"
     # Identity: untouched.
@@ -90,7 +147,7 @@ def test_empty_extracted_value_does_not_wipe_a_good_one(client, auth, fixed_extr
                      phone="", summary="")
 
     cid = upload(client, auth, ("frank.pdf", "frank-v1")).json()["data"]["created"][0]["candidate_id"]
-    upload(client, auth, ("frank-scan.pdf", "frank-v2"))
+    _resolve_update(client, auth, upload(client, auth, ("frank-scan.pdf", "frank-v2")))
 
     after = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
     assert after["phone"] == "0891234567"
@@ -105,7 +162,7 @@ def test_low_confidence_still_writes_through(client, auth, fixed_extraction):
                      full_name="G1na Prasert", extraction_confidence=0.21)
 
     cid = upload(client, auth, ("gina.pdf", "gina-v1")).json()["data"]["created"][0]["candidate_id"]
-    upload(client, auth, ("gina-bad.pdf", "gina-v2"))
+    _resolve_update(client, auth, upload(client, auth, ("gina-bad.pdf", "gina-v2")))
 
     after = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
     assert after["full_name"] == "G1na Prasert"
@@ -126,7 +183,7 @@ def test_reupload_leaves_comment_history_fully_intact(
         r = client.post(f"/api/candidates/{cid}/comments", headers=hr, json={"comment": text})
         assert r.status_code == 201, r.text
 
-    upload(client, auth, ("hana2.pdf", "hana-v2"))
+    _resolve_update(client, auth, upload(client, auth, ("hana2.pdf", "hana-v2")))
 
     after = client.get(f"/api/candidates/{cid}/comments", headers=hr).json()["data"]
     assert sorted(c["comment"] for c in after) == ["First note", "Second note"]
@@ -138,8 +195,8 @@ def test_reupload_keeps_the_old_cv_as_a_version(client, auth, fixed_extraction):
         fixed_extraction(marker, email=email)
 
     cid = upload(client, auth, ("first.pdf", "ivan-v1")).json()["data"]["created"][0]["candidate_id"]
-    upload(client, auth, ("second.pdf", "ivan-v2"))
-    upload(client, auth, ("third.pdf", "ivan-v3"))
+    _resolve_update(client, auth, upload(client, auth, ("second.pdf", "ivan-v2")))
+    _resolve_update(client, auth, upload(client, auth, ("third.pdf", "ivan-v3")))
 
     versions = client.get(
         f"/api/candidates/{cid}/resume-versions", headers=auth
@@ -166,7 +223,7 @@ def test_reupload_writes_a_field_level_change_log(client, auth, fixed_extraction
     fixed_extraction("judy-v2", email="judy@corp.example.com", full_name="Judy Somsak-Lee")
 
     cid = upload(client, auth, ("judy.pdf", "judy-v1")).json()["data"]["created"][0]["candidate_id"]
-    upload(client, auth, ("judy2.pdf", "judy-v2"))
+    _resolve_update(client, auth, upload(client, auth, ("judy2.pdf", "judy-v2")))
 
     changes = client.get(f"/api/candidates/{cid}/changes", headers=auth).json()["data"]
     renamed = [c for c in changes
@@ -180,7 +237,7 @@ def test_reupload_writes_a_field_level_change_log(client, auth, fixed_extraction
 def test_two_files_same_email_in_one_request_make_one_candidate(
     client, auth, fixed_extraction
 ):
-    """The second file must update the record the first one created."""
+    """The second file in a batch must pause for a decision, not auto-update."""
     fixed_extraction("kim-a", email="kim@corp.example.com", full_name="Kim First")
     fixed_extraction("kim-b", email="kim@corp.example.com", full_name="Kim Second")
 
@@ -197,16 +254,18 @@ def test_two_files_same_email_in_one_request_make_one_candidate(
     assert r.status_code == 201, r.text
     data = r.json()["data"]
     assert len(data["created"]) == 1
-    assert len(data["updated"]) == 1
-    assert data["created"][0]["candidate_id"] == data["updated"][0]["candidate_id"]
-    assert data["updated"][0]["full_name"] == "Kim Second"
+    assert data["updated"] == []
+    assert len(data["needs_review"]) == 1
+    updated = _resolve_update(client, auth, r)
+    assert data["created"][0]["candidate_id"] == updated["candidate_id"]
+    assert updated["full_name"] == "Kim Second"
 
     after = len(client.get("/api/candidates", headers=auth).json()["data"])
     assert after == before + 1
 
 
 def test_reupload_is_allowed_at_a_terminal_status(client, auth, fixed_extraction):
-    """Team decision: data still updates, status is still preserved."""
+    """Data still updates; replacing the CV restarts the application at New."""
     fixed_extraction("liam-v1", email="liam@corp.example.com", summary="Before hire.")
     fixed_extraction("liam-v2", email="liam@corp.example.com", summary="After hire.")
 
@@ -217,10 +276,11 @@ def test_reupload_is_allowed_at_a_terminal_status(client, auth, fixed_extraction
 
     r = upload(client, auth, ("liam-post-hire.pdf", "liam-v2"))
     assert r.status_code == 201
-    assert len(r.json()["data"]["updated"]) == 1
+    assert r.json()["data"]["updated"] == []
+    _resolve_update(client, auth, r)
 
     after = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
-    assert after["status"] == "Hired"
+    assert after["status"] == "New"
     assert after["summary"] == "After hire."
 
 

@@ -238,16 +238,16 @@ def transfer_candidate_ownership(
     account: HRAccount = Depends(get_current_account),
 ):
     """Round 5 - "Owner changes owner to give to another user, only their own."
-    Allowed callers: the CURRENT owner (transferring their own candidate away),
-    or any `admin` (override). Anyone else -> 403, even if they are the new
-    owner-to-be - a transfer is something done TO an account, never something
-    an account does to grant itself ownership."""
+    Allowed callers: the CURRENT owner only (transferring their own candidate
+    away) - admins included, no override. Anyone else -> 403, even if they are
+    the new owner-to-be - a transfer is something done TO an account, never
+    something an account does to grant itself ownership."""
     row = _get_or_404(db, candidate_id)
 
-    if account.account_id != row.owner_account_id and account.role != "admin":
+    if account.account_id != row.owner_account_id:
         raise HTTPException(
             status_code=403,
-            detail="Only the current owner or an admin can transfer ownership",
+            detail="Only the current owner can transfer ownership",
         )
 
     new_owner = db.get(HRAccount, payload.new_owner_account_id)
@@ -281,15 +281,15 @@ def get_ownership_options(
 ):
     """Active accounts the caller could transfer this candidate to - feeds
     the frontend's "Transfer ownership to" dropdown. Same permission rule as
-    the transfer endpoint itself (current owner or admin): the button is
+    the transfer endpoint itself (current owner only): the button is
     hidden in the UI for anyone else, but the data behind it is gated here
     too, not just by what the UI chooses to render."""
     row = _get_or_404(db, candidate_id)
 
-    if account.account_id != row.owner_account_id and account.role != "admin":
+    if account.account_id != row.owner_account_id:
         raise HTTPException(
             status_code=403,
-            detail="Only the current owner or an admin can view transfer options",
+            detail="Only the current owner can transfer ownership",
         )
 
     # is_active filtered in Python, not SQL: comparing it to the bool literal
@@ -318,8 +318,15 @@ def get_ownership_history(candidate_id: str, db: Session = Depends(get_db)):
         .order_by(OwnershipHistory.changed_at.desc())
         .all()
     )
+    names = owner_names_for(db, [account_id for r in rows for account_id in
+                                 (r.from_owner_account_id, r.to_owner_account_id, r.changed_by)])
     return {
-        "data": [OwnershipHistoryOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "data": [dict(
+            OwnershipHistoryOut.model_validate(r).model_dump(mode="json"),
+            from_owner_name=names.get(r.from_owner_account_id, ""),
+            to_owner_name=names.get(r.to_owner_account_id, ""),
+            changed_by_name=names.get(r.changed_by, ""),
+        ) for r in rows],
         "error": None,
     }
 
@@ -376,8 +383,10 @@ def get_status_history(candidate_id: str, db: Session = Depends(get_db)):
         .order_by(StatusHistory.changed_at.desc())
         .all()
     )
+    names = owner_names_for(db, [r.changed_by for r in rows])
     return {
-        "data": [StatusHistoryOut.model_validate(r).model_dump(mode="json") for r in rows],
+        "data": [dict(StatusHistoryOut.model_validate(r).model_dump(mode="json"),
+                      changed_by_name=names.get(r.changed_by, "")) for r in rows],
         "error": None,
     }
 
@@ -485,33 +494,24 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db)):
 # ------------------------------------------------------------------ F4 upload
 
 
-def _find_by_email(db: Session, extracted: dict) -> Candidate | None:
-    """F4 step 1. Normalized email is the ONLY automatic match key: deterministic
-    and high confidence. Fuzzy name matching is deliberately not used - two
-    "Somchai Jaidee" records merging automatically loses one person's history
-    with no undo.
-
-    Falls back to a scan of `email` for rows written before email_normalized
-    existed, and picks the oldest match so repeated uploads stay deterministic.
-    """
+def _find_by_email(db: Session, extracted: dict) -> list[Candidate]:
+    """Return every exact normalized-email match for a human create-or-update decision."""
     key = normalize_email(extracted.get("email"))
     if not key:
-        return None
+        return []
 
-    row = (
+    rows = (
         db.query(Candidate)
         .filter(Candidate.email_normalized == key)
-        .order_by(Candidate.created_at.asc(), Candidate.candidate_id.asc())
-        .first()
+        .order_by(Candidate.updated_at.desc(), Candidate.candidate_id.desc())
+        .all()
     )
-    if row is not None:
-        return row
 
     for legacy in db.query(Candidate).filter(Candidate.email_normalized.is_(None)).all():
         if normalize_email(legacy.email) == key:
-            legacy.email_normalized = key  # backfill on the way past
-            return legacy
-    return None
+            legacy.email_normalized = key
+            rows.append(legacy)
+    return rows
 
 
 @router.post("/candidates/upload", status_code=201)
@@ -522,17 +522,9 @@ async def upload_candidates(
 ):
     """Batch upload. Each .pdf/.docx file -> stored + extraction + persisted.
 
-    F4: a file whose extracted email matches an existing candidate UPDATES that
-    candidate instead of creating a second record. HR-owned fields (`status`,
-    `before_rejected_status`, `applied_position`, `location`) and the identity
-    fields (`candidate_id`, `created_at`) are preserved, and comment history
-    survives untouched because it is keyed on the preserved `candidate_id`.
-
-    Round 4 (team decision): a file with NO exact email match but a plausible
-    soft match (same phone, or same name + position) no longer guesses. It
-    stops in `needs_review[]` instead of silently becoming a new candidate -
-    resolve it via POST /api/pending-uploads/{id}/update or .../create-new.
-    Only a file with no match at all still auto-creates.
+    Exact-email and plausible soft matches stop in `needs_review[]`; HR chooses
+    whether to update the existing record or create a separate application cycle.
+    A file with no match still creates a candidate automatically.
 
     Returns `{created[], updated[], needs_review[], failed[], count}`; a bad
     file fails only its own entry. `count` = created + updated (what actually
@@ -591,62 +583,18 @@ async def upload_candidates(
             })
             continue
 
-        existing = _find_by_email(db, fields)
+        exact_matches = _find_by_email(db, fields)
+        duplicate_ids = [row.candidate_id for row in exact_matches]
+        if not duplicate_ids:
+            duplicate_ids = find_duplicate_hints(db, fields)
 
-        if existing is not None:
-            # ---------------- re-upload path (exact email match) ----------------
-            # Store the file first. If storage fails the record is still exactly
-            # as it was - no half-merged candidate.
-            try:
-                stored = store_resume(db, existing.candidate_id, name, content,
-                                      account.account_id)
-            except Exception as exc:
-                db.rollback()
-                failed.append({
-                    "filename": name, "candidate_id": existing.candidate_id,
-                    "error": f"Storage failed, existing record left untouched: {exc}",
-                })
-                continue
-
-            merge_on_reupload(db, existing, fields, account.account_id)
-            for field, value in (("resume_url", stored["url"]),
-                                 ("resume_filename", stored["filename"]),
-                                 ("upload_status", "Done")):
-                old = getattr(existing, field)
-                if old != value:
-                    record_change(db, existing.candidate_id, field, old, value,
-                                  account.account_id, source="reupload")
-                setattr(existing, field, value)
-            existing.updated_at = utcnow()
-            try:
-                db.commit()
-            except IntegrityError:
-                # The new email collides with a THIRD candidate's email - rare
-                # (the CV would have to disagree with itself between uploads),
-                # but a clear 409 in `failed[]` beats an unhandled 500.
-                db.rollback()
-                failed.append({
-                    "filename": name, "candidate_id": existing.candidate_id,
-                    "error": f"Extracted email now collides with another "
-                             f"candidate's; not applied. Resolve manually.",
-                })
-                continue
-            db.refresh(existing)
-            updated.append(_to_out(existing, db))
-            continue
-
-        # No exact email match. A soft hint (phone, or name + position) means
-        # this MIGHT be a re-upload under a different/failed email extraction -
-        # stop and ask rather than guessing either way (round 4 decision).
-        hints = find_duplicate_hints(db, fields)
-        if hints:
-            # ---------------- needs-review path ----------------
+        if duplicate_ids:
             pending = PendingUpload(
                 pending_upload_id=str(uuid.uuid4()),
                 filename=name,
                 file_bytes=content,
                 extracted_fields=fields,
-                duplicate_candidate_ids=hints,
+                duplicate_candidate_ids=duplicate_ids,
                 uploaded_by=account.account_id,
                 created_at=utcnow(),
             )

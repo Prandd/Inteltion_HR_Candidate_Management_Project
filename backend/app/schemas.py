@@ -379,7 +379,13 @@ class DuplicateCandidateHint(BaseModel):
     email: str
     phone: str
     status: str
+    created_at: datetime
     updated_at: datetime
+    rejected_at: datetime | None = None
+    rejected_from_status: str | None = None
+    rejection_reason: str = ""
+    latest_comment: str = ""
+    latest_comment_by: str = ""
 
 
 class PendingUploadOut(BaseModel):

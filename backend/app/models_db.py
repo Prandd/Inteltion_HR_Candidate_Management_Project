@@ -44,11 +44,10 @@ class Candidate(Base):
     email = Column(String, nullable=False, default="")
     # F4 - lowercased/trimmed `email`, kept in sync by normalize_email() at every
     # write. The duplicate-detection key. NULL (not "") when there is no email,
-    # so two email-less candidates never collide on the unique constraint below.
-    # UNIQUE as of migration 0003 - see that file for why it could not be added
-    # in round 4 (existing DBs could already hold duplicate emails from before
-    # F4 existed).
-    email_normalized = Column(String(255), nullable=True, unique=True, index=True)
+    # Was UNIQUE (migration 0003); migration 0007 drops that so one person can
+    # hold several application cycles - HR picks "create new" in the
+    # duplicate-upload review. Still indexed: it is the lookup key.
+    email_normalized = Column(String(255), nullable=True, index=True)
     phone = Column(String, nullable=False, default="")
     location = Column(String, nullable=False, default="")
     applied_position = Column(String, nullable=False, default="")

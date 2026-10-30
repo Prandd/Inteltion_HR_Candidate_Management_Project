@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime
+
+from fastapi import HTTPException
 
 from sqlalchemy.orm import Session
 
@@ -330,6 +333,7 @@ def record_ownership_change(
     to_owner_account_id: str,
     changed_by: str,
     reason: str = "",
+    changed_at: datetime | None = None,
 ) -> None:
     """One row per assignment/transfer. The very first call for a candidate (at
     creation) passes `from_owner_account_id=None`. Added to the session, NOT
@@ -340,7 +344,7 @@ def record_ownership_change(
         from_owner_account_id=from_owner_account_id,
         to_owner_account_id=to_owner_account_id,
         changed_by=changed_by,
-        changed_at=utcnow(),
+        changed_at=changed_at or utcnow(),
         reason=reason or "",
     ))
 
@@ -352,8 +356,11 @@ def assign_initial_owner(db: Session, candidate: Candidate, owner_account_id: st
     call this - ownership is a fact about who brought the candidate in, not
     about who most recently touched the record (round-5 decision)."""
     candidate.owner_account_id = owner_account_id
+    if candidate.created_at is None:
+        candidate.created_at = utcnow()
     record_ownership_change(db, candidate.candidate_id, None, owner_account_id,
-                            changed_by=owner_account_id, reason="created by upload")
+                            changed_by=owner_account_id, reason="created by upload",
+                            changed_at=candidate.created_at)
 
 
 def transfer_ownership(
@@ -364,11 +371,19 @@ def transfer_ownership(
     reason: str = "",
 ) -> None:
     """Round 5 - move ownership to someone else. Caller (router) has already
-    checked that `changed_by` is allowed to do this (the current owner, or an
-    admin) and that `new_owner_account_id` is a real, active account."""
+    checked that `changed_by` is the current owner and that
+    `new_owner_account_id` is a real, active account."""
     old_owner = candidate.owner_account_id
-    candidate.owner_account_id = new_owner_account_id
-    candidate.updated_at = utcnow()
+    # Compare-and-set prevents simultaneous requests from the outgoing owner
+    # from both succeeding and producing an inaccurate ownership chain.
+    updated = db.query(Candidate).filter(
+        Candidate.candidate_id == candidate.candidate_id,
+        Candidate.owner_account_id == changed_by,
+    ).update({"owner_account_id": new_owner_account_id, "updated_at": utcnow()},
+             synchronize_session=False)
+    if updated != 1:
+        raise HTTPException(status_code=409, detail="Ownership has changed. Refresh and try again.")
+    db.refresh(candidate)
     record_ownership_change(db, candidate.candidate_id, old_owner,
                             new_owner_account_id, changed_by, reason=reason)
 
@@ -429,6 +444,36 @@ def pending_upload_preview(db: Session, pending: PendingUpload) -> dict:
         .filter(Candidate.candidate_id.in_(pending.duplicate_candidate_ids))
         .all()
     }
+    candidate_ids = list(candidates)
+    rejected_by_candidate = {}
+    for history in (
+        db.query(StatusHistory)
+        .filter(
+            StatusHistory.candidate_id.in_(candidate_ids),
+            StatusHistory.to_status.in_(REJECTED_STATES),
+        )
+        .order_by(StatusHistory.changed_at.desc())
+        .all()
+    ):
+        rejected_by_candidate.setdefault(history.candidate_id, history)
+
+    comments_by_candidate = {}
+    for comment in (
+        db.query(CommentLog)
+        .filter(
+            CommentLog.candidate_id.in_(candidate_ids),
+            CommentLog.deleted_at.is_(None),
+        )
+        .order_by(CommentLog.commented_at.desc(), CommentLog.created_at.desc())
+        .all()
+    ):
+        comments_by_candidate.setdefault(comment.candidate_id, comment)
+
+    ordered_candidates = sorted(
+        candidates.values(),
+        key=lambda candidate: (candidate.updated_at, candidate.candidate_id),
+        reverse=True,
+    )
     hints = [
         DuplicateCandidateHint(
             candidate_id=c.candidate_id,
@@ -437,12 +482,33 @@ def pending_upload_preview(db: Session, pending: PendingUpload) -> dict:
             email=c.email,
             phone=c.phone,
             status=c.status,
+            created_at=c.created_at,
             updated_at=c.updated_at,
+            rejected_at=(
+                rejected_by_candidate[c.candidate_id].changed_at
+                if c.candidate_id in rejected_by_candidate else None
+            ),
+            rejected_from_status=(
+                rejected_by_candidate[c.candidate_id].from_status
+                if c.candidate_id in rejected_by_candidate else None
+            ),
+            rejection_reason=(
+                rejected_by_candidate[c.candidate_id].reason
+                if c.candidate_id in rejected_by_candidate else ""
+            ),
+            latest_comment=(
+                comments_by_candidate[c.candidate_id].comment
+                if c.candidate_id in comments_by_candidate
+                else c.line_manager_comment or c.hr_comment or ""
+            ),
+            latest_comment_by=(
+                comments_by_candidate[c.candidate_id].author_name
+                if c.candidate_id in comments_by_candidate else ""
+            ),
         )
-        # Preserve the order find_duplicate_hints() returned, and skip a
-        # candidate_id that no longer exists (deleted between upload and now).
-        for cid in pending.duplicate_candidate_ids
-        if (c := candidates.get(cid)) is not None
+        # Show the candidate update resolution will target first. Deleted
+        # candidates disappear from the review summary.
+        for c in ordered_candidates
     ]
     preview = {f: pending.extracted_fields.get(f, "") for f in _PENDING_PREVIEW_FIELDS}
     return PendingUploadOut(
