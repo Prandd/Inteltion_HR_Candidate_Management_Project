@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+import sqlalchemy as sa
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -12,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import models_db  # noqa: F401  - registers ORM models on Base
 from .config import ensure_dirs, settings
 from .database import Base, SessionLocal, engine
+from .models_db import Candidate
 from .routers import auth, candidates, comments, hr_accounts, pending_uploads, positions
 from .seed import seed_if_empty
 from .statuses import STATUS_VALUES, assert_valid_db_statuses
@@ -24,6 +26,27 @@ logging.basicConfig(
 log = logging.getLogger("app.main")
 
 
+def _drop_unique_email_index() -> None:
+    """Same change as migration 0007, applied at boot. The Azure SQL database
+    was built by create_all() (back when email_normalized was UNIQUE) and has
+    never been stamped for Alembic, so the migration cannot run there - and
+    while that unique index exists, "create new" on a duplicate upload 500s.
+    No-op once no unique index is left on the column."""
+    inspector = sa.inspect(engine)
+    unique = [
+        ix["name"] for ix in inspector.get_indexes("candidates")
+        if ix.get("unique") and ix.get("column_names") == ["email_normalized"]
+    ]
+    if not unique:
+        return
+    with engine.begin() as conn:
+        for name in unique:
+            conn.execute(sa.schema.DropIndex(sa.Index(name, _table=Candidate.__table__)))
+        sa.Index("ix_candidates_email_normalized",
+                 Candidate.__table__.c.email_normalized).create(conn)
+    log.info("Dropped unique index on candidates.email_normalized: %s", unique)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # First, so a misconfigured deploy says so before it does anything else.
@@ -33,6 +56,7 @@ async def lifespan(_app: FastAPI):
 
     ensure_dirs()
     Base.metadata.create_all(bind=engine)
+    _drop_unique_email_index()
     seed_if_empty()
 
     # F6 step 4 - catch status drift at boot, not when the Kanban silently drops
