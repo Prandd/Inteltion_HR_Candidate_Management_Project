@@ -9,15 +9,42 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..auth import require_role
+from ..auth import get_current_account, require_role
 from ..database import get_db
 from ..models_db import HRAccount, utcnow
-from ..schemas import HRAccountCreate, HRAccountOut, HRAccountUpdate, ResetPasswordRequest
+from ..schemas import (
+    HRAccountCreate,
+    HRAccountOut,
+    HRAccountUpdate,
+    OwnershipOptionOut,
+    ResetPasswordRequest,
+)
 from ..security import hash_password
 
 router = APIRouter(
     tags=["hr-accounts"], dependencies=[Depends(require_role("admin"))]
 )
+
+# Separate from `router` on purpose: every route above is admin-only (the
+# router-level dependency), but any logged-in account needs to see who the
+# other active accounts are for things like the dashboard's owner filter and
+# the ownership-transfer dropdown - just names, never email/role/password.
+options_router = APIRouter(tags=["hr-accounts"])
+
+
+@options_router.get("/hr-accounts/options")
+def list_account_options(
+    db: Session = Depends(get_db),
+    _account: HRAccount = Depends(get_current_account),
+):
+    """Every active HR account, for UI pickers (owner filter, ownership
+    transfer) that need the full roster - not just accounts who happen to
+    own a candidate already loaded on the page."""
+    rows = [a for a in db.query(HRAccount).order_by(HRAccount.full_name.asc()).all() if a.is_active]
+    return {
+        "data": [OwnershipOptionOut.model_validate(a).model_dump(mode="json") for a in rows],
+        "error": None,
+    }
 
 
 def _out(row: HRAccount) -> dict:
@@ -36,10 +63,12 @@ def list_accounts(
     db: Session = Depends(get_db),
     is_active: bool | None = Query(None, description="filter on active/deactivated"),
 ):
-    query = db.query(HRAccount)
+    # Filtered in Python, not SQL: comparing a Boolean column to the Python
+    # True/False singleton compiles to `IS 1`/`IS 0` in SQLAlchemy, and SQL
+    # Server's IS only accepts NULL - `== is_active` 500s there every time.
+    rows = db.query(HRAccount).order_by(HRAccount.created_at.asc()).all()
     if is_active is not None:
-        query = query.filter(HRAccount.is_active == is_active)
-    rows = query.order_by(HRAccount.created_at.asc()).all()
+        rows = [r for r in rows if r.is_active == is_active]
     return {"data": [_out(r) for r in rows], "error": None}
 
 
@@ -69,12 +98,50 @@ def create_account(payload: HRAccountCreate, db: Session = Depends(get_db)):
     return {"data": _out(row), "error": None}
 
 
+def _guard_admin_removal(db: Session, row: HRAccount, caller: HRAccount,
+                         deactivating: bool, demoting: bool) -> None:
+    """Shared by DELETE and PUT - PUT can deactivate (`is_active: false`) or
+    demote (`role` other than admin) too, and must not be a way around these
+    checks."""
+    if not (deactivating or demoting):
+        return
+    if deactivating and row.account_id == caller.account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot deactivate the account you are logged in with",
+        )
+    if row.role != "admin" or not row.is_active:
+        return
+    # Filtered in Python: comparing is_active to a bool literal in SQL hits
+    # the same `IS 1` problem noted in list_accounts() above.
+    remaining_admins = sum(
+        1
+        for a in db.query(HRAccount).filter(
+            HRAccount.role == "admin", HRAccount.account_id != row.account_id
+        )
+        if a.is_active
+    )
+    if remaining_admins == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot deactivate or demote the last active admin account",
+        )
+
+
 @router.put("/hr-accounts/{account_id}")
 def update_account(
-    account_id: str, payload: HRAccountUpdate, db: Session = Depends(get_db)
+    account_id: str,
+    payload: HRAccountUpdate,
+    db: Session = Depends(get_db),
+    caller: HRAccount = Depends(require_role("admin")),
 ):
     row = _get_or_404(db, account_id)
     data = payload.model_dump(exclude_unset=True)
+    _guard_admin_removal(
+        db, row, caller,
+        deactivating=data.get("is_active") is False,
+        demoting=data.get("role") not in (None, "admin"),
+    )
 
     if "email" in data and data["email"]:
         clash = (
@@ -117,24 +184,7 @@ def deactivate_account(
 ):
     """Soft delete - sets is_active = false. See the module docstring."""
     row = _get_or_404(db, account_id)
-    if row.account_id == caller.account_id:
-        raise HTTPException(
-            status_code=400,
-            detail="You cannot deactivate the account you are logged in with",
-        )
-    remaining_admins = (
-        db.query(HRAccount)
-        .filter(
-            HRAccount.role == "admin",
-            HRAccount.is_active.is_(True),
-            HRAccount.account_id != account_id,
-        )
-        .count()
-    )
-    if row.role == "admin" and row.is_active and remaining_admins == 0:
-        raise HTTPException(
-            status_code=400, detail="Cannot deactivate the last active admin account"
-        )
+    _guard_admin_removal(db, row, caller, deactivating=True, demoting=False)
 
     row.is_active = False
     row.updated_at = utcnow()

@@ -126,8 +126,10 @@ def test_reupload_preserves_hr_owned_and_identity_fields(client, auth, fixed_ext
     _resolve_update(client, auth, upload(client, auth, ("erin-v2.pdf", "erin-v2")))
 
     after = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
-    # HR-owned: untouched, even though the new CV carried a different position.
-    assert after["status"] == "Interview"
+    # Replacing the CV restarts the application cycle at New...
+    assert after["status"] == "New"
+    # ...but the other HR-owned fields stay, even though the new CV carried a
+    # different position.
     assert after["applied_position"] == "Staff Platform Engineer"
     assert after["location"] == "Phuket, Thailand"
     # Identity: untouched.
@@ -263,7 +265,7 @@ def test_two_files_same_email_in_one_request_make_one_candidate(
 
 
 def test_reupload_is_allowed_at_a_terminal_status(client, auth, fixed_extraction):
-    """Team decision: data still updates, status is still preserved."""
+    """Data still updates; replacing the CV restarts the application at New."""
     fixed_extraction("liam-v1", email="liam@corp.example.com", summary="Before hire.")
     fixed_extraction("liam-v2", email="liam@corp.example.com", summary="After hire.")
 
@@ -278,7 +280,7 @@ def test_reupload_is_allowed_at_a_terminal_status(client, auth, fixed_extraction
     _resolve_update(client, auth, r)
 
     after = client.get(f"/api/candidates/{cid}", headers=auth).json()["data"]
-    assert after["status"] == "Hired"
+    assert after["status"] == "New"
     assert after["summary"] == "After hire."
 
 

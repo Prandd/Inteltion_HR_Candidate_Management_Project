@@ -18,7 +18,6 @@ in a 20-file batch is the kind of prompt people click through without reading.
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_account
@@ -61,6 +60,36 @@ def _open_or_404(db: Session, pending_upload_id: str) -> PendingUpload:
             ),
         )
     return row
+
+
+def _claim(db: Session, pending: PendingUpload) -> None:
+    """Mark the item taken BEFORE doing the work, as a compare-and-set on
+    `resolved_at IS NULL`. _open_or_404()'s check alone is a read-then-write:
+    a double-clicked "Create new" sends two requests that both see the item
+    open, and both used to create a candidate. Only one wins this UPDATE; the
+    other gets the same 409 a stale tab would. Undone by _release() if the
+    work then fails, so a storage error does not strand the item."""
+    claimed = (
+        db.query(PendingUpload)
+        .filter(PendingUpload.pending_upload_id == pending.pending_upload_id,
+                PendingUpload.resolved_at.is_(None))
+        .update({"resolved_at": utcnow(), "resolution": "in_progress"},
+                synchronize_session=False)
+    )
+    db.commit()
+    if claimed != 1:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Pending upload '{pending.pending_upload_id}' is already being resolved",
+        )
+    db.refresh(pending)
+
+
+def _release(db: Session, pending_upload_id: str) -> None:
+    db.query(PendingUpload).filter(
+        PendingUpload.pending_upload_id == pending_upload_id
+    ).update({"resolved_at": None, "resolution": None}, synchronize_session=False)
+    db.commit()
 
 
 def _resolved(db: Session, pending: PendingUpload, resolution: str,
@@ -115,35 +144,37 @@ def resolve_as_update(
             ),
         )
 
-    stored = store_resume(db, target.candidate_id, pending.filename,
-                          pending.file_bytes or b"", account.account_id)
-
-    merge_on_reupload(db, target, pending.extracted_fields, account.account_id)
-    apply_status_change(db, target, "New", account.account_id,
-                        reason="Application restarted by replacing CV")
-    for field, value in (("resume_url", stored["url"]),
-                         ("resume_filename", stored["filename"]),
-                         ("upload_status", "Done")):
-        old = getattr(target, field)
-        if old != value:
-            record_change(db, target.candidate_id, field, old, value,
-                          account.account_id, source="reupload")
-        setattr(target, field, value)
-    target.updated_at = utcnow()
-
-    pending.resolved_at = utcnow()
-    pending.resolution = "updated"
-    pending.resolved_candidate_id = target.candidate_id
-    pending.file_bytes = None  # the real copy now lives in resume_versions
+    target_id = target.candidate_id
+    _claim(db, pending)
+    target = db.get(Candidate, target_id)
 
     try:
+        stored = store_resume(db, target.candidate_id, pending.filename,
+                              pending.file_bytes or b"", account.account_id)
+
+        merge_on_reupload(db, target, pending.extracted_fields, account.account_id)
+        apply_status_change(db, target, "New", account.account_id,
+                            reason="Application restarted by replacing CV")
+        for field, value in (("resume_url", stored["url"]),
+                             ("resume_filename", stored["filename"]),
+                             ("upload_status", "Done")):
+            old = getattr(target, field)
+            if old != value:
+                record_change(db, target.candidate_id, field, old, value,
+                              account.account_id, source="reupload")
+            setattr(target, field, value)
+        target.updated_at = utcnow()
+
+        pending.resolved_at = utcnow()
+        pending.resolution = "updated"
+        pending.resolved_candidate_id = target.candidate_id
+        pending.file_bytes = None  # the real copy now lives in resume_versions
+
         db.commit()
-    except IntegrityError:
+    except Exception as exc:
         db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail="Merging this CV would collide with another candidate's email",
-        )
+        _release(db, pending_upload_id)
+        raise HTTPException(status_code=500, detail=f"Could not store the CV: {exc}")
     db.refresh(target)
     return _resolved(db, pending, "updated", target)
 
@@ -166,6 +197,7 @@ def resolve_as_create_new(
     transfer endpoint, same as any other reassignment.
     """
     pending = _open_or_404(db, pending_upload_id)
+    _claim(db, pending)
 
     candidate_id = next_candidate_id(db)
     row = Candidate(candidate_id=candidate_id, upload_status="Processing",
@@ -205,18 +237,11 @@ def resolve_as_create_new(
 
         db.commit()
         db.refresh(row)
-    except IntegrityError:
-        db.rollback()
-        db.query(Candidate).filter(Candidate.candidate_id == candidate_id).delete()
-        db.commit()
-        raise HTTPException(
-            status_code=409,
-            detail="A candidate with this email already exists",
-        )
     except Exception as exc:
         db.rollback()
         db.query(Candidate).filter(Candidate.candidate_id == candidate_id).delete()
         db.commit()
+        _release(db, pending_upload_id)
         raise HTTPException(status_code=500, detail=f"Could not store the CV: {exc}")
 
     return _resolved(db, pending, "created_new", row)
@@ -233,6 +258,7 @@ def discard_pending_upload(
     holding somebody's resume we explicitly decided not to keep is exactly what
     PDPA asks us not to do."""
     pending = _open_or_404(db, pending_upload_id)
+    _claim(db, pending)
 
     pending.resolved_at = utcnow()
     pending.resolution = "discarded"

@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:5174"
     upload_dir: str = "./data/uploads"
     seed_file: str = _BUNDLED_SEED
+    # The bundled fixture is nine invented applicants. Off by default so a
+    # fresh production database starts empty instead of showing HR fake
+    # people; docker-compose turns it on for local development.
+    seed_mock_candidates: bool = False
     api_base_url: str = "http://localhost:8000"
     max_upload_mb: int = 10
 

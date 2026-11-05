@@ -99,6 +99,27 @@ def test_before_rejected_status_is_not_settable_from_the_body(
     assert r.json()["data"]["before_rejected_status"] == ""
 
 
+def test_status_only_put_does_not_wipe_the_rest_of_the_record(
+    client, auth, new_candidate
+):
+    """The dashboard's status dropdown PUTs only {"status": ...} - every other
+    CandidateBase field has a default ("" / 0 / []), so a naive
+    payload.model_dump() (no exclude_unset) would silently reset full_name,
+    skills, experience etc. to those defaults instead of leaving them alone."""
+    created = new_candidate()
+    cid = created["candidate_id"]
+
+    r = client.put(f"/api/candidates/{cid}", headers=auth, json={"status": "Interview"})
+
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["status"] == "Interview"
+    assert data["full_name"] == created["full_name"]
+    assert data["email"] == created["email"]
+    assert data["skills"] == created["skills"]
+    assert data["experience"] == created["experience"]
+
+
 def test_moving_out_of_a_rejected_state_clears_the_field(client, auth, new_candidate):
     cid = new_candidate()["candidate_id"]
     _put_status(client, auth, cid, "Review")

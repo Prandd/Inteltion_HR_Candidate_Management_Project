@@ -32,5 +32,12 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY backend/ .
 
+# The real CV extractor, so app/llm_client.py's in-process fallback finds it
+# at runtime (it looks two levels up from app/llm_client.py for
+# llm-service/cv-parsing). Optional at runtime - without
+# AZURE_OPENAI_*/LLM_SERVICE_URL credentials, llm_client.py falls back to
+# the deterministic mock in app/extraction.py regardless of this being here.
+COPY llm-service/ /llm-service/
+
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

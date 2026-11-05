@@ -14,6 +14,8 @@ services:
       DATABASE_URL: sqlite:////app/data/dev.db
       UPLOAD_DIR: /app/data/uploads
       SEED_FILE: /contracts/mock-candidates.json
+      SEED_MOCK_CANDIDATES: "true"   # local dev only - production starts empty
+      ALLOW_MOCK_EXTRACTION: "true"  # local dev only - without it a missing extractor is an error
       API_BASE_URL: http://localhost:8000
       CORS_ORIGINS: http://localhost:5173,http://localhost:5174
       MAX_UPLOAD_MB: "10"

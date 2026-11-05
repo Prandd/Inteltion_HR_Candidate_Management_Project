@@ -1,5 +1,4 @@
 import os
-import sys
 import uuid
 from datetime import datetime, timezone
 
@@ -10,10 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_account
 from ..config import settings
 from ..database import get_db
-
-
-from ..llm_client import extract_candidate
-
+from ..llm_client import extract_candidate  # real llm-service if available, else MOCK fallback
 from ..models_db import (
     Candidate,
     CandidateChangeLog,
@@ -35,6 +31,7 @@ from ..schemas import (
     CandidateUpdate,
     ChangeLogOut,
     OwnershipHistoryOut,
+    OwnershipOptionOut,
     ResumeVersionOut,
     SqlTestScoreIn,
     SqlTestScoreOut,
@@ -66,9 +63,10 @@ router = APIRouter(tags=["candidates"], dependencies=[Depends(get_current_accoun
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 
 
-def _to_out(row: Candidate, db: Session):
-    if row.updated_at is None:
-        row.updated_at = row.created_at or datetime.now(timezone.utc)
+def _to_out(row: Candidate, db: Session) -> dict:
+    """Thin alias kept so the rest of this file reads the same as before -
+    candidate_out() moved to services.py so routers/pending_uploads.py can
+    share it without importing this router."""
     return candidate_out(db, row)
 
 
@@ -159,14 +157,16 @@ def update_candidate(
 ):
     row = _get_or_404(db, candidate_id)
 
-    data = payload.model_dump(
-        mode="json",
-        exclude_unset=True,
-    )
-    if "email" in data and data["email"] and "@" not in data["email"]:
+    # exclude_unset, not a blind model_dump(): every CandidateBase field has a
+    # default ("" / 0 / []), so a caller that only means to change `status`
+    # (the dashboard's status dropdown does exactly this) would otherwise
+    # have every omitted field silently reset to its default - wiping
+    # full_name, skills, experience, etc. - instead of getting a validation
+    # error that would have caught the mistake.
+    data = payload.model_dump(mode="json", exclude_unset=True)
+    if data.get("email") and "@" not in data["email"]:
         raise HTTPException(status_code=400, detail="Invalid email format")
-
-    new_status = data.pop("status", None)
+    new_status = data.pop("status", row.status)
     if new_status not in STATUS_SET:
         raise HTTPException(
             status_code=400,
@@ -180,16 +180,10 @@ def update_candidate(
                           account.account_id, source="manual_edit")
         setattr(row, key, value)
 
-    if "email" in data:
-        row.email_normalized = normalize_email(row.email)
-
-    if new_status is not None and new_status != row.status:
-        apply_status_change(
-            db,
-            row,
-            new_status,
-            account.account_id,
-        )
+    row.email_normalized = normalize_email(row.email)
+    # `status` goes through the transition rule so before_rejected_status is
+    # maintained and a status_history row is written - never a blanket setattr.
+    apply_status_change(db, row, new_status, account.account_id)
 
     row.updated_at = datetime.now(timezone.utc)
     try:
@@ -201,37 +195,8 @@ def update_candidate(
         db.rollback()
         raise HTTPException(
             status_code=409,
-            detail=f"Email '{data['email']}' is already used by another candidate",
+            detail=f"Email '{row.email}' is already used by another candidate",
         )
-    db.refresh(row)
-    return {"data": _to_out(row, db), "error": None}
-
-
-@router.post("/candidates/{candidate_id}/restore")
-def restore_candidate(
-    candidate_id: str,
-    payload: StatusChangeRequest | None = None,
-    db: Session = Depends(get_db),
-    account: HRAccount = Depends(get_current_account),
-):
-    """F5 - undo a rejection: move the candidate back to the stage they held
-    before they were rejected. This is the reason before_rejected_status exists."""
-    row = _get_or_404(db, candidate_id)
-    if row.status not in REJECTED_STATES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Candidate '{candidate_id}' is not in a rejected state",
-        )
-    target = row.before_rejected_status or "New"
-    if target not in STATUS_SET:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot restore: '{target}' is not a valid status",
-        )
-
-    apply_status_change(db, row, target, account.account_id,
-                        reason=(payload.reason if payload else "") or "restored from rejection")
-    db.commit()
     db.refresh(row)
     return {"data": _to_out(row, db), "error": None}
 
@@ -273,10 +238,10 @@ def transfer_candidate_ownership(
     account: HRAccount = Depends(get_current_account),
 ):
     """Round 5 - "Owner changes owner to give to another user, only their own."
-    Allowed callers: the CURRENT owner (transferring their own candidate away).
-    Anyone else -> 403, even if they are the new
-    owner-to-be - a transfer is something done TO an account, never something
-    an account does to grant itself ownership."""
+    Allowed callers: the CURRENT owner only (transferring their own candidate
+    away) - admins included, no override. Anyone else -> 403, even if they are
+    the new owner-to-be - a transfer is something done TO an account, never
+    something an account does to grant itself ownership."""
     row = _get_or_404(db, candidate_id)
 
     if account.account_id != row.owner_account_id:
@@ -314,19 +279,34 @@ def get_ownership_options(
     db: Session = Depends(get_db),
     account: HRAccount = Depends(get_current_account),
 ):
+    """Active accounts the caller could transfer this candidate to - feeds
+    the frontend's "Transfer ownership to" dropdown. Same permission rule as
+    the transfer endpoint itself (current owner only): the button is
+    hidden in the UI for anyone else, but the data behind it is gated here
+    too, not just by what the UI chooses to render."""
     row = _get_or_404(db, candidate_id)
+
     if account.account_id != row.owner_account_id:
-        raise HTTPException(status_code=403, detail="Only the current owner can transfer ownership")
-    accounts = (
-        db.query(HRAccount)
-        .filter(HRAccount.is_active.is_(True), HRAccount.account_id != row.owner_account_id)
-        .order_by(HRAccount.full_name.asc(), HRAccount.username.asc())
+        raise HTTPException(
+            status_code=403,
+            detail="Only the current owner can transfer ownership",
+        )
+
+    # is_active filtered in Python, not SQL: comparing it to the bool literal
+    # True compiles to `IS 1`, which SQL Server rejects outright (IS only
+    # accepts NULL there) - caught live against Azure SQL on this endpoint.
+    accounts = [
+        a
+        for a in db.query(HRAccount)
+        .filter(HRAccount.account_id != row.owner_account_id)
+        .order_by(HRAccount.full_name.asc())
         .all()
-    )
-    return {"data": [
-        {"account_id": a.account_id, "full_name": a.full_name, "username": a.username}
-        for a in accounts
-    ], "error": None}
+        if a.is_active
+    ]
+    return {
+        "data": [OwnershipOptionOut.model_validate(a).model_dump(mode="json") for a in accounts],
+        "error": None,
+    }
 
 
 @router.get("/candidates/{candidate_id}/ownership-history")
@@ -580,12 +560,11 @@ async def upload_candidates(
         # what decides which record this file belongs to. A failure here means we
         # never learned the email, so no existing record can have been touched.
         try:
-            # ---------------- MOCK EXTRACTION BOUNDARY ----------------
-            # Day 6: swap the `extract_candidate` import above for Member 4's
-            # llm-service function. Frozen signature:
-            #   extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict
+            # llm_client.extract_candidate() picks real llm-service extraction
+            # when it's reachable (LLM_SERVICE_URL, or the sibling llm-service/
+            # package in-process) and falls back to the deterministic mock
+            # otherwise - see app/llm_client.py.
             raw = extract_candidate(content, filename=name)
-            # ---------------------------------------------------------
             fields = CandidateBase.model_validate(raw).model_dump(mode="json")
         except Exception as exc:
             # Keep a Failed row so HR can see the file arrived and delete/retry.

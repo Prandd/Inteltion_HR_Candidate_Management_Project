@@ -3,7 +3,8 @@
 1. LLM_SERVICE_URL set (Vercel binding, or manual for local) -> call the
    llm-service over HTTP: POST {LLM_SERVICE_URL}/extract
 2. Otherwise -> in-process import from ../llm-service/cv-parsing (local dev)
-3. Otherwise -> the deterministic mock in app/extraction.py
+3. Otherwise -> an error, unless ALLOW_MOCK_EXTRACTION=true opts in to the
+   deterministic mock in app/extraction.py (local development only)
 """
 from __future__ import annotations
 
@@ -39,8 +40,18 @@ def _local_extract():
             return real
         except ImportError:
             pass
-    from .extraction import extract_candidate as mock
-    return mock
+    # No silent fallback to the mock: it invents a plausible-looking name,
+    # email and skills from a hash of the file, so on a deployment that merely
+    # lost the extractor (missing COPY, missing dependency) every upload would
+    # quietly fill the HR system with fake applicants. Opt in explicitly.
+    if os.environ.get("ALLOW_MOCK_EXTRACTION", "").strip().lower() in ("1", "true", "yes"):
+        from .extraction import extract_candidate as mock
+        return mock
+    raise RuntimeError(
+        "CV extraction is unavailable: llm-service/cv-parsing could not be "
+        "imported and LLM_SERVICE_URL is not set. (Set ALLOW_MOCK_EXTRACTION=true "
+        "for local development only - it produces fake candidates.)"
+    )
 
 
 def extract_candidate(file_bytes: bytes, filename: str | None = None) -> dict:
