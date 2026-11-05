@@ -44,11 +44,10 @@ class Candidate(Base):
     email = Column(String, nullable=False, default="")
     # F4 - lowercased/trimmed `email`, kept in sync by normalize_email() at every
     # write. The duplicate-detection key. NULL (not "") when there is no email,
-    # so two email-less candidates never collide on the unique constraint below.
-    # UNIQUE as of migration 0003 - see that file for why it could not be added
-    # in round 4 (existing DBs could already hold duplicate emails from before
-    # F4 existed).
-    email_normalized = Column(String(255), nullable=True, unique=True, index=True)
+    # Was UNIQUE (migration 0003); migration 0007 drops that so one person can
+    # hold several application cycles - HR picks "create new" in the
+    # duplicate-upload review. Still indexed: it is the lookup key.
+    email_normalized = Column(String(255), nullable=True, index=True)
     phone = Column(String, nullable=False, default="")
     location = Column(String, nullable=False, default="")
     applied_position = Column(String, nullable=False, default="")
@@ -308,3 +307,43 @@ class CandidateChangeLog(Base):
     changed_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     changed_by = Column(String, nullable=False, default="")  # hr_accounts.account_id
     source = Column(String, nullable=False, default="manual_edit")  # reupload | manual_edit
+
+
+class Position(Base):
+    """Job openings/requisitions. Reverse-engineered from the frontend's
+    Positions/PositionDetail/PositionRequirements pages, which called
+    GET/POST /positions against a resource that never existed on this
+    branch - no prior contract or schema to match, just those three pages'
+    actual field usage.
+
+    `candidate_count` is never stored here - it's computed at read time by
+    counting candidates whose `applied_position` text matches `title`,
+    since candidates don't carry a position_id (applied_position is a free
+    -text field, not a foreign key - matching is best-effort by name)."""
+
+    __tablename__ = "positions"
+
+    position_id = Column(String(36), primary_key=True)  # uuid4
+    title = Column(String, nullable=False)
+    department = Column(String, nullable=False, default="")
+    location = Column(String, nullable=False, default="")
+    description = Column(Text, nullable=False, default="")
+    skills = Column(JSON, nullable=False, default=list)
+    status = Column(String, nullable=False, default="Open")  # Open | Closed
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow
+    )
+
+
+class IdCounter(Base):
+    """High-water mark for running-number ids. next_candidate_id() used to
+    hand out max(existing id) + 1, so deleting the newest candidate made the
+    next upload reuse its id - and anything still holding the old id (a
+    pending upload's duplicate_candidate_ids, possible_duplicate_of on other
+    rows) silently started pointing at a different person."""
+
+    __tablename__ = "id_counters"
+
+    name = Column(String(50), primary_key=True)
+    last_value = Column(Integer, nullable=False, default=0)

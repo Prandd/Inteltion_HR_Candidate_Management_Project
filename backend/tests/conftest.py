@@ -48,6 +48,10 @@ os.environ["AZURE_STORAGE_CONNECTION_STRING"] = ""
 # a plausible-looking wrong-password 401, re-run before assuming a regression.
 os.environ["BCRYPT_ROUNDS"] = "4"
 os.environ["SEED_ADMIN_USERNAME"] = "admin"
+# Production defaults are "no fake data"; the suite opts in to both because
+# several tests rely on seeded candidates / the deterministic mock.
+os.environ["SEED_MOCK_CANDIDATES"] = "true"
+os.environ["ALLOW_MOCK_EXTRACTION"] = "true"
 os.environ["SEED_ADMIN_PASSWORD"] = "test-admin-pw"
 os.environ["SEED_ADMIN_EMAIL"] = "admin@test.local"
 os.environ["SEED_ADMIN_FULL_NAME"] = "Test Admin"

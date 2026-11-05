@@ -116,6 +116,26 @@ def test_non_admin_cannot_reach_account_management(client, make_account):
     assert created.status_code == 403
 
 
+def test_account_options_lists_active_accounts_for_any_logged_in_role(
+    client, auth, make_account
+):
+    """GET /api/hr-accounts/options feeds UI pickers (owner filter,
+    ownership transfer) that need the full roster, not just admin-only
+    /api/hr-accounts - any logged-in role should be able to read it."""
+    hr_account, hr_headers = make_account(role="hr")
+
+    r = client.get("/api/hr-accounts/options", headers=hr_headers)
+    assert r.status_code == 200
+    accounts = r.json()["data"]
+    assert any(a["account_id"] == hr_account["account_id"] for a in accounts)
+    assert all(set(a.keys()) == {"account_id", "full_name", "username"} for a in accounts)
+
+    deactivated_id = hr_account["account_id"]
+    client.delete(f"/api/hr-accounts/{deactivated_id}", headers=auth)
+    r2 = client.get("/api/hr-accounts/options", headers=auth)
+    assert all(a["account_id"] != deactivated_id for a in r2.json()["data"])
+
+
 def test_duplicate_username_and_email_are_rejected(client, auth, make_account):
     account, _ = make_account(role="hr")
     dup_username = client.post(
@@ -194,3 +214,27 @@ def test_admin_cannot_deactivate_their_own_account(client, auth, admin_login):
 def test_garbage_token_is_401_not_500(client):
     r = client.get("/api/candidates", headers=bearer("not-a-jwt"))
     assert r.status_code == 401
+
+
+def test_put_cannot_be_used_to_deactivate_yourself(client, auth, admin_login):
+    """DELETE refused this; PUT {is_active: false} used to walk straight past it."""
+    me = admin_login["account"]["account_id"]
+    r = client.put(f"/api/hr-accounts/{me}", headers=auth, json={"is_active": False})
+    assert r.status_code == 400, r.text
+    assert client.get("/api/auth/me", headers=auth).status_code == 200
+
+
+def test_put_cannot_demote_or_deactivate_the_last_admin(client, auth, make_account):
+    """The only active admin left must keep both its role and its access."""
+    make_account(role="admin")  # so there is at least one other admin to remove
+    accounts = client.get("/api/hr-accounts", headers=auth).json()["data"]
+    me = client.get("/api/auth/me", headers=auth).json()["data"]["account_id"]
+    # Leave `me` as the only active admin.
+    for a in accounts:
+        if a["role"] == "admin" and a["is_active"] and a["account_id"] != me:
+            assert client.delete(f"/api/hr-accounts/{a['account_id']}",
+                                 headers=auth).status_code == 200
+
+    assert client.put(f"/api/hr-accounts/{me}", headers=auth,
+                      json={"role": "hr"}).status_code == 400
+    assert client.get("/api/auth/me", headers=auth).json()["data"]["role"] == "admin"

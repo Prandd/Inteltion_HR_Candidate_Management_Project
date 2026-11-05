@@ -91,6 +91,9 @@ def seed_candidates_if_empty(db: Session, author: HRAccount) -> None:
     both frontend lanes see realistic data immediately."""
     if db.query(Candidate).count() > 0:
         return
+    if not settings.seed_mock_candidates:
+        log.info("[seed] SEED_MOCK_CANDIDATES is off - starting with an empty candidate list")
+        return
 
     path = settings.seed_file
     if not os.path.exists(path):
