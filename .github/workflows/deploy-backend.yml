@@ -1,0 +1,53 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".dockerignore"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: 00149770-27a0-45c7-9d85-460668e8a598
+          tenant-id: a5c20665-f3d8-4f07-b211-5051a9b92f26
+          subscription-id: 4e8c99b1-8acf-4f71-b1fb-f285be0a7e59
+
+      - name: Sign in to container registry
+        run: az acr login --name hrinternal26acr
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: hrinternal26acr.azurecr.io/inteltion-hr-capstone-api:${{ github.sha }}
+
+      - name: Deploy to Container App
+        run: |
+          az containerapp update \
+            --resource-group rg-hr-internal \
+            --name inteltion-hr-capstone-api \
+            --image hrinternal26acr.azurecr.io/inteltion-hr-capstone-api:${{ github.sha }} \
+            --output none
+
+      - name: Check API health
+        run: curl --fail --retry 12 --retry-all-errors --retry-delay 5 --max-time 30 https://inteltion-hr-capstone-api.redmeadow-c74a56ae.southeastasia.azurecontainerapps.io/health
