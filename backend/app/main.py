@@ -47,6 +47,16 @@ def _drop_unique_email_index() -> None:
     log.info("Dropped unique index on candidates.email_normalized: %s", unique)
 
 
+def _ensure_contact_other_column() -> None:
+    """Support existing create_all databases as well as Alembic-managed ones."""
+    if "contact_other" in {column["name"] for column in sa.inspect(engine).get_columns("candidates")}:
+        return
+    column = sa.schema.CreateColumn(Candidate.__table__.c.contact_other).compile(dialect=engine.dialect)
+    with engine.begin() as connection:
+        connection.execute(sa.text(f"ALTER TABLE candidates ADD {column}"))
+    log.info("Added candidates.contact_other")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # First, so a misconfigured deploy says so before it does anything else.
@@ -57,6 +67,7 @@ async def lifespan(_app: FastAPI):
     ensure_dirs()
     Base.metadata.create_all(bind=engine)
     _drop_unique_email_index()
+    _ensure_contact_other_column()
     seed_if_empty()
 
     # F6 step 4 - catch status drift at boot, not when the Kanban silently drops

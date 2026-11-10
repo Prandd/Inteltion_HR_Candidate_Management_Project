@@ -40,6 +40,7 @@ export interface CandidateSkill {
 }
 
 export interface CandidateDetailType {
+    contact_other?: string;
     candidate_id: string;
     full_name?: string;
     applied_position?: string;

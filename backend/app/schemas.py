@@ -276,6 +276,7 @@ class CandidateBase(BaseModel):
     full_name: str = ""
     email: str = ""
     phone: str = ""
+    contact_other: str = ""
     location: str = ""
     applied_position: str = ""
     summary: str = ""

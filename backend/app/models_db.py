@@ -49,6 +49,7 @@ class Candidate(Base):
     # duplicate-upload review. Still indexed: it is the lookup key.
     email_normalized = Column(String(255), nullable=True, index=True)
     phone = Column(String, nullable=False, default="")
+    contact_other = Column(Text, nullable=False, default="", server_default="")
     location = Column(String, nullable=False, default="")
     applied_position = Column(String, nullable=False, default="")
     summary = Column(Text, nullable=False, default="")

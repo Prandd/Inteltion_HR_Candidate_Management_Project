@@ -273,7 +273,8 @@ function CandidateHeader({
 
                 className="
                 flex
-                items-center
+                items-end
+                self-center
                 gap-4
                 "
 

@@ -96,15 +96,11 @@ function CandidateDetail() {
                             )}
                         </SectionCard>
 
-                        <SectionCard title="Education">
-                            {candidate.education?.length ? (
-                                <EducationSection candidate={candidate} />
-                            ) : (
-                                <p className="text-gray-400">
-                                    No education available
-                                </p>
-                            )}
-                        </SectionCard>
+                        <EducationSection
+                            key={`education-${candidate.candidate_id}`}
+                            candidate={candidate}
+                            onSaved={setCandidate}
+                        />
 
                         <CommentSection
                             key={candidate.candidate_id}
@@ -115,7 +111,11 @@ function CandidateDetail() {
 
                     <div className="col-span-4 space-y-6">
                         <OwnershipSection candidate={candidate} onUpdate={fetchCandidate} />
-                        <ContactSection candidate={candidate} />
+                        <ContactSection
+                            key={`contact-${candidate.candidate_id}`}
+                            candidate={candidate}
+                            onSaved={setCandidate}
+                        />
 
                         <ResumeSection candidate={candidate} />
 

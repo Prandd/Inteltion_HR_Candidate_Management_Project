@@ -43,7 +43,7 @@ EXTRACTION_OWNED = {
 }
 # Never touched by an upload. A CV does not know which stage of our pipeline the
 # person is at, nor which role HR is considering them for.
-HR_OWNED = {"status", "before_rejected_status", "applied_position", "location"}
+HR_OWNED = {"contact_other", "status", "before_rejected_status", "applied_position", "location"}
 IMMUTABLE = {"candidate_id", "created_at"}
 
 # Comments are absent from all three sets on purpose: they live in comment_logs
