@@ -7,7 +7,7 @@
       "email": "jajajeab.jajajeab@gmail.com",
       "phone": "(+66) 98-795-9916",
       "applied_position": "",
-      "summary": "Data Analyst and AI Engineer with experience in operational data analysis, dashboard development, OCR systems, and AI-driven applications using Python and machine learning frameworks. Experienced with Google BigQuery, Looker Studio, TensorFlow, PyTorch, and Streamlit-based projects.",
+      "summary": "Data Analyst and AI Engineer with experience in operational analytics, OCR systems, and AI-driven applications using Python, SQL, and machine learning frameworks. Experienced in building dashboards, workflow automation, and predictive models.",
       "skills": [
         {
           "skill": "Programming & Tools",
@@ -59,10 +59,10 @@
           "position": "AI Engineer, Contract",
           "start_date": "2024-11",
           "end_date": "2025-01",
-          "description": "Acted as a full-time owner for an AI-driven OCR document-based system, ensuring the development and delivery align with business goals and technical specifications. Leveraged Python to design, develop, and integrate proprietary OCR technology, delivering scalable and efficient solutions for document processing and automated data extraction. Improved processing accuracy and performance, streamlining workflows and reducing manual intervention."
+          "description": "Acted as a full-time owner for an AI-driven OCR document-based system, ensuring the development and delivery aligned with business goals and technical specifications. Leveraged Python to design, develop, and integrate proprietary OCR technology, delivering scalable and efficient solutions for document processing and automated data extraction. Improved processing accuracy and performance, streamlining workflows and reducing manual intervention."
         }
       ],
-      "experience_total": 1.9,
+      "experience_total": 2.1,
       "current_salary": 0.0,
       "expected_salary": 0.0,
       "education": [

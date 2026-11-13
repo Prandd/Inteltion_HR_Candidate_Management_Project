@@ -10,9 +10,11 @@ import {
 import api from "../api/axios";
 
 import PipelineStatCard from "../components/PipelineStatCard";
+import StatusFilter from "../components/StatusFilter";
 import PipelineColumn from "../components/PipelineColumn";
 import PipelineCandidateCard from "../components/PipelineCandidateCard";
 import { formatStatusLabel } from "../utils/status";
+import { CANDIDATE_STATUSES } from "../../../../shared-contracts/status";
 
 import type {
     CandidateSummary
@@ -33,12 +35,12 @@ function Dashboard(){
     const [experience,setExperience] = useState<number | "">("");
     const [position,setPosition] = useState("All");
     const [owner,setOwner] = useState("all");
+    const [statuses,setStatuses] = useState<string[]>([]);
 
     const [sortBy,setSortBy] = useState("latest");
 
     const [view,setView] = useState<"board"|"table">("board");
     const [tablePage,setTablePage] = useState(1);
-    const [selectedCandidateIds,setSelectedCandidateIds] = useState<Set<string>>(new Set());
 
 
     const columns = [
@@ -137,6 +139,15 @@ function Dashboard(){
 
 
 
+    // Include less common statuses when present, or when selected explicitly.
+    const boardColumns = [
+        ...columns,
+        ...CANDIDATE_STATUSES.filter(status =>
+            !columns.some(column => column.name === status)
+            && (statuses.includes(status) || candidates.some(candidate => candidate.status === status))
+        ).map(name => ({ name, color: "blue" as const })),
+    ];
+
     const filteredCandidates = candidates.filter(candidate=>{
 
         const keyword = debouncedSearch
@@ -208,6 +219,10 @@ function Dashboard(){
             &&
 
             matchPosition
+
+            &&
+
+            (statuses.length === 0 || statuses.includes(candidate.status || "New"))
 
             &&
 
@@ -301,28 +316,6 @@ function Dashboard(){
         (currentTablePage - 1) * tablePageSize,
         currentTablePage * tablePageSize
     );
-
-    function toggleCandidateSelection(candidateId:string){
-        setSelectedCandidateIds(current=>{
-            const next = new Set(current);
-            if(next.has(candidateId)) next.delete(candidateId);
-            else next.add(candidateId);
-            return next;
-        });
-    }
-
-    function togglePageSelection(){
-        setSelectedCandidateIds(current=>{
-            const next = new Set(current);
-            const allSelected = pageCandidates.length > 0
-                && pageCandidates.every(candidate=>next.has(candidate.candidate_id));
-            pageCandidates.forEach(candidate=>{
-                if(allSelected) next.delete(candidate.candidate_id);
-                else next.add(candidate.candidate_id);
-            });
-            return next;
-        });
-    }
 
     function statusBadgeClass(status:string){
         if(status === "Hired") return "bg-emerald-50 text-emerald-700";
@@ -629,7 +622,6 @@ function Dashboard(){
                         onChange={event => {
                             setOwner(event.target.value);
                             setTablePage(1);
-                            setSelectedCandidateIds(new Set());
                         }}
                         className="h-10 w-full md:w-56 bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-100"
                     >
@@ -695,6 +687,13 @@ function Dashboard(){
 
 
 
+
+                    {/* STATUS */}
+
+                    <StatusFilter selected={statuses} onChange={selected => {
+                        setStatuses(selected);
+                        setTablePage(1);
+                    }} />
 
                     {/* SORT */}
 
@@ -813,7 +812,7 @@ function Dashboard(){
         ">
 
             {
-                columns.map(({name,color})=>(
+                boardColumns.map(({name,color})=>(
 
                     <PipelineColumn
                         key={name}
@@ -903,15 +902,6 @@ function Dashboard(){
                     <table className="w-full min-w-[980px] text-sm">
                         <thead className="border-b border-gray-200 bg-gray-50/80">
                             <tr className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                                <th className="w-12 px-4 py-3 text-left">
-                                    <input
-                                        type="checkbox"
-                                        aria-label="Select candidates on this page"
-                                        checked={pageCandidates.length > 0 && pageCandidates.every(candidate=>selectedCandidateIds.has(candidate.candidate_id))}
-                                        onChange={togglePageSelection}
-                                        className="h-4 w-4 rounded border-gray-300 accent-blue-600"
-                                    />
-                                </th>
                                 <th className="px-3 py-3 text-left">Candidate</th>
                                 <th className="px-3 py-3 text-left">Position</th>
                                 <th className="px-3 py-3 text-left">Experience</th>
@@ -924,7 +914,7 @@ function Dashboard(){
                         <tbody className="divide-y divide-gray-100">
                             {pageCandidates.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-14 text-center text-sm text-gray-400">
+                                    <td colSpan={7} className="px-6 py-14 text-center text-sm text-gray-400">
                                         No candidates found
                                     </td>
                                 </tr>
@@ -943,15 +933,6 @@ function Dashboard(){
                                         key={candidate.candidate_id}
                                         className="group transition-colors hover:bg-blue-50/30"
                                     >
-                                        <td className="px-4 py-3.5">
-                                            <input
-                                                type="checkbox"
-                                                aria-label={`Select ${candidate.full_name || "candidate"}`}
-                                                checked={selectedCandidateIds.has(candidate.candidate_id)}
-                                                onChange={()=>toggleCandidateSelection(candidate.candidate_id)}
-                                                className="h-4 w-4 rounded border-gray-300 accent-blue-600"
-                                            />
-                                        </td>
                                         <td className="px-3 py-3.5">
                                             <div className="flex min-w-0 items-center gap-3">
                                                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-semibold text-blue-700">
@@ -1012,7 +993,6 @@ function Dashboard(){
                     <div className="flex flex-col gap-3 border-t border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-gray-500">
                             Showing {sortedCandidates.length === 0 ? 0 : (currentTablePage - 1) * tablePageSize + 1} to {Math.min(currentTablePage * tablePageSize, sortedCandidates.length)} of {sortedCandidates.length} candidates
-                            {selectedCandidateIds.size > 0 && ` · ${selectedCandidateIds.size} selected`}
                         </p>
                         <div className="flex items-center gap-1.5 self-end sm:self-auto">
                             <button
