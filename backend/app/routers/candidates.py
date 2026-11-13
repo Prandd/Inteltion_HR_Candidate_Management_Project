@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -91,14 +92,37 @@ def _to_summary(row: Candidate, owner_names: dict[str, str] | None = None) -> di
     ).model_dump(mode="json")
 
 
-def _matches_keyword(row: Candidate, needle: str) -> bool:
-    """`q` search across full_name, email, candidate_id, and skills (skill names
-    + tools)."""
+def _matches_keyword(row: Candidate, needle: str,
+                     commented_ids: set[str] | None = None) -> bool:
+    """`q` search across full_name, email, candidate_id, skills (the group name,
+    e.g. "Programming Languages", and each tool in it, e.g. "C++"), and - via
+    `commented_ids` - any live comment on the candidate whose text or author
+    name contains the keyword."""
     hay = [row.full_name or "", row.email or "", row.candidate_id or ""]
     for s in row.skills or []:
         hay.append(s.get("skill", ""))
         hay.extend(s.get("tools", []) or [])
-    return any(needle in h.lower() for h in hay)
+    if any(needle in h.lower() for h in hay):
+        return True
+    return bool(commented_ids) and row.candidate_id in commented_ids
+
+
+def _candidate_ids_with_comment_matching(db: Session, needle: str) -> set[str]:
+    """Candidates with at least one non-deleted comment whose body or author
+    name contains `needle` (case-insensitive). Done in SQL so we don't pull
+    every comment into Python; autoescape keeps `%` and `_` in the keyword
+    literal."""
+    rows = (
+        db.query(CommentLog.candidate_id)
+        .filter(
+            CommentLog.deleted_at.is_(None),
+            func.lower(CommentLog.comment).contains(needle, autoescape=True)
+            | func.lower(CommentLog.author_name).contains(needle, autoescape=True),
+        )
+        .distinct()
+        .all()
+    )
+    return {r[0] for r in rows}
 
 
 def _get_or_404(db: Session, candidate_id: str) -> Candidate:
@@ -115,7 +139,11 @@ def list_candidates(
     applied_position: str | None = Query(None, description="exact match on position"),
     min_experience: float | None = Query(None, description="experience_total >= this"),
     max_experience: float | None = Query(None, description="experience_total <= this"),
-    q: str | None = Query(None, description="keyword: full_name, email, skills, candidate_id"),
+    q: str | None = Query(
+        None,
+        description="keyword: full_name, email, candidate_id, skills (group names "
+                    "and tools), comment text, comment author name",
+    ),
     owner_account_id: str | None = Query(
         None, description="exact match on owner - pass the caller's own account_id "
                           "for a 'my candidates' filter"
@@ -137,7 +165,8 @@ def list_candidates(
 
     if q and q.strip():
         needle = q.strip().lower()
-        rows = [r for r in rows if _matches_keyword(r, needle)]
+        commented_ids = _candidate_ids_with_comment_matching(db, needle)
+        rows = [r for r in rows if _matches_keyword(r, needle, commented_ids)]
 
     owner_names = owner_names_for(db, [r.owner_account_id for r in rows])
     return {"data": [_to_summary(r, owner_names) for r in rows], "error": None}
