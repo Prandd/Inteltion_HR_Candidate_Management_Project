@@ -27,6 +27,15 @@ def utcnow() -> datetime:
 # (and anything importing it) keep working.
 _utcnow = utcnow
 
+# SQL Server compiles String/Text to VARCHAR/TEXT, which store text in the
+# database code page and silently turn anything outside it (Thai, Chinese,
+# Arabic, emoji ...) into '?'. Every column a person or a CV can write into uses
+# Unicode / UText instead (NVARCHAR on SQL Server; unchanged on SQLite/Postgres).
+# Ids, FKs and the bcrypt hash are ASCII by construction and stay String(n).
+# schema_compat.ensure_unicode_text_columns() upgrades databases that already
+# exist (created by create_all, never migrated).
+UText = UnicodeText().with_variant(Unicode(), "mssql")
+
 
 class Candidate(Base):
     """One row per candidate. Nested skills / experience / education are stored
@@ -42,19 +51,19 @@ class Candidate(Base):
     # dialect and fails at table-create time. SQLite/Postgres ignore the length
     # cap for non-key columns, so this is a no-op for them.
     candidate_id = Column(String(7), primary_key=True)
-    full_name = Column(String, nullable=False, default="")
-    email = Column(String, nullable=False, default="")
+    full_name = Column(Unicode, nullable=False, default="")
+    email = Column(Unicode, nullable=False, default="")
     # F4 - lowercased/trimmed `email`, kept in sync by normalize_email() at every
     # write. The duplicate-detection key. NULL (not "") when there is no email,
     # Was UNIQUE (migration 0003); migration 0007 drops that so one person can
     # hold several application cycles - HR picks "create new" in the
     # duplicate-upload review. Still indexed: it is the lookup key.
-    email_normalized = Column(String(255), nullable=True, index=True)
-    phone = Column(String, nullable=False, default="")
-    contact_other = Column(Text, nullable=False, default="", server_default="")
-    location = Column(String, nullable=False, default="")
-    applied_position = Column(String, nullable=False, default="")
-    summary = Column(Text, nullable=False, default="")
+    email_normalized = Column(Unicode(255), nullable=True, index=True)
+    phone = Column(Unicode, nullable=False, default="")
+    contact_other = Column(UText, nullable=False, default="", server_default="")
+    location = Column(Unicode, nullable=False, default="")
+    applied_position = Column(Unicode, nullable=False, default="")
+    summary = Column(UText, nullable=False, default="")
     skills = Column(JSON, nullable=False, default=list)
     experience = Column(JSON, nullable=False, default=list)
     experience_total = Column(Float, nullable=False, default=0)
@@ -65,17 +74,17 @@ class Candidate(Base):
     # columns are no longer written by the API - the candidate payload computes
     # them from the newest live comment of each type so existing frontend code
     # keeps rendering something. Removed from the schema entirely in phase 2.
-    hr_comment = Column(Text, nullable=False, default="")
-    line_manager_comment = Column(Text, nullable=False, default="")
+    hr_comment = Column(UText, nullable=False, default="")
+    line_manager_comment = Column(UText, nullable=False, default="")
     extraction_confidence = Column(Float, nullable=False, default=0)
-    raw_text_snippet = Column(Text, nullable=False, default="")
-    status = Column(String, nullable=False, default="New")  # HR pipeline
+    raw_text_snippet = Column(UText, nullable=False, default="")
+    status = Column(Unicode, nullable=False, default="New")  # HR pipeline
     # F5 - the stage held immediately before entering a rejected state.
     # Server-managed, never accepted from a request body. "" when not rejected.
-    before_rejected_status = Column(String, nullable=False, default="")
-    upload_status = Column(String, nullable=False, default="Not Uploaded")  # file lifecycle
-    resume_url = Column(String, nullable=False, default="")
-    resume_filename = Column(String, nullable=False, default="")
+    before_rejected_status = Column(Unicode, nullable=False, default="")
+    upload_status = Column(Unicode, nullable=False, default="Not Uploaded")  # file lifecycle
+    resume_url = Column(Unicode, nullable=False, default="")
+    resume_filename = Column(Unicode, nullable=False, default="")
     # F4 - candidate_ids this row *might* duplicate, when no email match was
     # possible. Read-only hint for HR; the backend never auto-merges on it.
     possible_duplicate_of = Column(JSON, nullable=False, default=list)
@@ -108,13 +117,13 @@ class HRAccount(Base):
     __tablename__ = "hr_accounts"
 
     account_id = Column(String(36), primary_key=True)  # uuid4
-    username = Column(String(100), nullable=False, unique=True, index=True)
-    email = Column(String(255), nullable=False, unique=True)
-    full_name = Column(String, nullable=False, default="")  # shown as the comment author
+    username = Column(Unicode(100), nullable=False, unique=True, index=True)
+    email = Column(Unicode(255), nullable=False, unique=True)
+    full_name = Column(Unicode, nullable=False, default="")  # shown as the comment author
     # bcrypt hash. NEVER returned by the API - HRAccountOut does not declare the
     # field at all, so it cannot leak through a careless model_dump().
     password_hash = Column(String, nullable=False)
-    role = Column(String, nullable=False, default="hr")  # see schemas.ROLE_VALUES
+    role = Column(Unicode, nullable=False, default="hr")  # see schemas.ROLE_VALUES
     is_active = Column(Boolean, nullable=False, default=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
@@ -144,12 +153,10 @@ class CommentLog(Base):
     )
     # Snapshot of the author at write time: a comment from 2024 should still read
     # as the name that wrote it, even after a rename or a deactivation.
-    author_name = Column(String, nullable=False, default="")
-    author_role = Column(String, nullable=False, default="hr")
-    comment_type = Column(String, nullable=False, default="general")
-    # SQL Server TEXT uses the database code page and can replace Thai with '?'.
-    # Force NVARCHAR(MAX) there; other databases keep their native Unicode text.
-    comment = Column(UnicodeText().with_variant(Unicode(), "mssql"), nullable=False)
+    author_name = Column(Unicode, nullable=False, default="")
+    author_role = Column(Unicode, nullable=False, default="hr")
+    comment_type = Column(Unicode, nullable=False, default="general")
+    comment = Column(UText, nullable=False)  # NVARCHAR(MAX) on SQL Server - see UText
     commented_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
@@ -179,8 +186,8 @@ class ResumeVersion(Base):
         String(7), ForeignKey("candidates.candidate_id"), nullable=False, index=True
     )
     version_no = Column(Integer, nullable=False)  # 1, 2, 3...
-    blob_path = Column(String, nullable=False)
-    filename = Column(String, nullable=False)
+    blob_path = Column(Unicode, nullable=False)
+    filename = Column(Unicode, nullable=False)
     uploaded_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     uploaded_by = Column(String(36), ForeignKey("hr_accounts.account_id"), nullable=False)
 
@@ -199,11 +206,11 @@ class StatusHistory(Base):
     candidate_id = Column(
         String(7), ForeignKey("candidates.candidate_id"), nullable=False, index=True
     )
-    from_status = Column(String, nullable=True)
-    to_status = Column(String, nullable=False)
+    from_status = Column(Unicode, nullable=True)
+    to_status = Column(Unicode, nullable=False)
     changed_by = Column(String(36), ForeignKey("hr_accounts.account_id"), nullable=False)
     changed_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-    reason = Column(Text, nullable=False, default="")
+    reason = Column(UText, nullable=False, default="")
 
 
 class PendingUpload(Base):
@@ -223,7 +230,7 @@ class PendingUpload(Base):
     __tablename__ = "pending_uploads"
 
     pending_upload_id = Column(String(36), primary_key=True)  # uuid4
-    filename = Column(String, nullable=False)
+    filename = Column(Unicode, nullable=False)
     file_bytes = Column(LargeBinary, nullable=True)
     extracted_fields = Column(JSON, nullable=False)  # full CandidateBase dict
     # candidate_ids find_duplicate_hints() suggested. Never empty - an upload
@@ -232,7 +239,7 @@ class PendingUpload(Base):
     uploaded_by = Column(String(36), ForeignKey("hr_accounts.account_id"), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     resolved_at = Column(DateTime(timezone=True), nullable=True)  # NULL = still open
-    resolution = Column(String, nullable=True)  # 'updated' | 'created_new' | 'discarded'
+    resolution = Column(Unicode, nullable=True)  # 'updated' | 'created_new' | 'discarded'
     resolved_candidate_id = Column(String, nullable=True)
 
 
@@ -261,7 +268,7 @@ class OwnershipHistory(Base):
     )
     changed_by = Column(String(36), ForeignKey("hr_accounts.account_id"), nullable=False)
     changed_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-    reason = Column(Text, nullable=False, default="")
+    reason = Column(UText, nullable=False, default="")
 
 
 class SqlTestScore(Base):
@@ -283,7 +290,7 @@ class SqlTestScore(Base):
         String(7), ForeignKey("candidates.candidate_id"), nullable=False, index=True
     )
     score = Column(Float, nullable=False)
-    source = Column(String, nullable=False, default="sql_test")
+    source = Column(Unicode, nullable=False, default="sql_test")
     raw_payload = Column(JSON, nullable=True)
     recorded_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     # Nullable: a machine-to-machine call from the external tool may not carry
@@ -306,12 +313,12 @@ class CandidateChangeLog(Base):
     candidate_id = Column(
         String(7), ForeignKey("candidates.candidate_id"), nullable=False, index=True
     )
-    field = Column(String, nullable=False)
-    old_value = Column(Text, nullable=False, default="")  # JSON-encoded, truncated
-    new_value = Column(Text, nullable=False, default="")
+    field = Column(Unicode, nullable=False)
+    old_value = Column(UText, nullable=False, default="")  # JSON-encoded, truncated
+    new_value = Column(UText, nullable=False, default="")
     changed_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     changed_by = Column(String, nullable=False, default="")  # hr_accounts.account_id
-    source = Column(String, nullable=False, default="manual_edit")  # reupload | manual_edit
+    source = Column(Unicode, nullable=False, default="manual_edit")  # reupload | manual_edit
 
 
 class Position(Base):
@@ -329,12 +336,12 @@ class Position(Base):
     __tablename__ = "positions"
 
     position_id = Column(String(36), primary_key=True)  # uuid4
-    title = Column(String, nullable=False)
-    department = Column(String, nullable=False, default="")
-    location = Column(String, nullable=False, default="")
-    description = Column(Text, nullable=False, default="")
+    title = Column(Unicode, nullable=False)
+    department = Column(Unicode, nullable=False, default="")
+    location = Column(Unicode, nullable=False, default="")
+    description = Column(UText, nullable=False, default="")
     skills = Column(JSON, nullable=False, default=list)
-    status = Column(String, nullable=False, default="Open")  # Open | Closed
+    status = Column(Unicode, nullable=False, default="Open")  # Open | Closed
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = Column(
         DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow

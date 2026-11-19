@@ -15,7 +15,7 @@ from .config import ensure_dirs, settings
 from .database import Base, SessionLocal, engine
 from .models_db import Candidate
 from .routers import auth, candidates, comments, hr_accounts, pending_uploads, positions
-from .schema_compat import ensure_unicode_comment_column
+from .schema_compat import ensure_unicode_comment_column, ensure_unicode_text_columns
 from .seed import seed_if_empty
 from .statuses import STATUS_VALUES, assert_valid_db_statuses
 from .storage import LocalDiskStorage, log_active_storage, storage
@@ -72,6 +72,17 @@ async def lifespan(_app: FastAPI):
     with engine.begin() as connection:
         if ensure_unicode_comment_column(connection):
             log.info("Upgraded comment_logs.comment to Unicode NVARCHAR(MAX)")
+    try:
+        with engine.begin() as connection:
+            upgraded = ensure_unicode_text_columns(connection, Base.metadata)
+        if upgraded:
+            log.info("Upgraded %d text column(s) to Unicode NVARCHAR: %s",
+                     len(upgraded), ", ".join(upgraded))
+    except Exception:
+        # Until this succeeds non-Latin text is stored as '?', but that is no
+        # reason to refuse to boot. The upgrade is one transaction, so a
+        # failure leaves the schema untouched, and it retries on the next start.
+        log.exception("Could not upgrade text columns to Unicode; will retry on next start")
     seed_if_empty()
 
     # F6 step 4 - catch status drift at boot, not when the Kanban silently drops
