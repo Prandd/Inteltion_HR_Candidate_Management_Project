@@ -265,6 +265,20 @@ class EducationItem(BaseModel):
     year: str = ""
 
 
+class ContactItem(BaseModel):
+    """One extra contact method: a name ("LINE", "LinkedIn", "Work phone") and the
+    contact itself. Lenient here because this is also the OUTPUT shape - the
+    limits are enforced on input, in CandidateUpdate."""
+
+    label: str = ""
+    value: str = ""
+
+
+MAX_CONTACTS = 50
+MAX_CONTACT_LABEL = 50
+MAX_CONTACT_VALUE = 500
+
+
 class CandidateBase(BaseModel):
     """The editable body of a candidate. NULL RULE: no nulls - every string
     defaults to "", every number to 0, every array to [].
@@ -276,7 +290,7 @@ class CandidateBase(BaseModel):
     full_name: str = ""
     email: str = ""
     phone: str = ""
-    contact_other: str = ""
+    contacts: list[ContactItem] = Field(default_factory=list)
     location: str = ""
     applied_position: str = ""
     summary: str = ""
@@ -296,6 +310,23 @@ class CandidateUpdate(CandidateBase):
     candidate_id / timestamps / resume_url / before_rejected_status /
     possible_duplicate_of / the two deprecated comment fields are all ignored
     if present in the body."""
+
+    @field_validator("contacts")
+    @classmethod
+    def _check_contacts(cls, v: list[ContactItem]) -> list[ContactItem]:
+        if len(v) > MAX_CONTACTS:
+            raise ValueError(f"At most {MAX_CONTACTS} contacts are allowed")
+        cleaned = []
+        for item in v:
+            label, value = item.label.strip(), item.value.strip()
+            if not label or not value:
+                raise ValueError("Each contact needs both a name and a value")
+            if len(label) > MAX_CONTACT_LABEL:
+                raise ValueError(f"A contact name can be at most {MAX_CONTACT_LABEL} characters")
+            if len(value) > MAX_CONTACT_VALUE:
+                raise ValueError(f"A contact can be at most {MAX_CONTACT_VALUE} characters")
+            cleaned.append(ContactItem(label=label, value=value))
+        return cleaned
 
 
 class CandidateOut(CandidateBase):

@@ -15,7 +15,12 @@ from .config import ensure_dirs, settings
 from .database import Base, SessionLocal, engine
 from .models_db import Candidate
 from .routers import auth, candidates, comments, hr_accounts, pending_uploads, positions
-from .schema_compat import ensure_unicode_comment_column, ensure_unicode_text_columns
+from .schema_compat import (
+    backfill_contacts_from_other,
+    ensure_contacts_column,
+    ensure_unicode_comment_column,
+    ensure_unicode_text_columns,
+)
 from .seed import seed_if_empty
 from .statuses import STATUS_VALUES, assert_valid_db_statuses
 from .storage import LocalDiskStorage, log_active_storage, storage
@@ -69,6 +74,18 @@ async def lifespan(_app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _drop_unique_email_index()
     _ensure_contact_other_column()
+    with engine.begin() as connection:
+        if ensure_contacts_column(connection):
+            log.info("Added candidates.contacts")
+    try:
+        with engine.begin() as connection:
+            moved = backfill_contacts_from_other(connection)
+        if moved:
+            log.info("Moved the old 'other contact' text into contacts for %d candidate(s)", moved)
+    except Exception:
+        # Retried on the next start; nothing is lost in the meantime (the old
+        # text stays in contact_other until it has been copied across).
+        log.exception("Could not move contact_other into contacts; will retry on next start")
     with engine.begin() as connection:
         if ensure_unicode_comment_column(connection):
             log.info("Upgraded comment_logs.comment to Unicode NVARCHAR(MAX)")

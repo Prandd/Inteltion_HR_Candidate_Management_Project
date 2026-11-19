@@ -1,4 +1,6 @@
 """Small schema upgrades for deployments originally created without Alembic."""
+import json
+
 import sqlalchemy as sa
 
 
@@ -142,3 +144,56 @@ def ensure_unicode_text_columns(connection, metadata) -> list[str]:
             _upgrade_column(connection, schema, table.name, column, current)
             upgraded.append(f"{table.name}.{column.name}")
     return upgraded
+
+
+# --- candidates.contacts -----------------------------------------------------
+
+
+def ensure_contacts_column(connection) -> bool:
+    """Add candidates.contacts to a database created by create_all before the
+    column existed (create_all never alters an existing table). Existing rows
+    get '[]' from the column default. Returns True if it added the column."""
+    inspector = sa.inspect(connection)
+    if "contacts" in {c["name"] for c in inspector.get_columns("candidates")}:
+        return False
+    from .models_db import Candidate  # local: models_db must not import this module back
+
+    column = sa.schema.CreateColumn(Candidate.__table__.c.contacts).compile(dialect=connection.dialect)
+    connection.execute(sa.text(f"ALTER TABLE candidates ADD {column}"))
+    return True
+
+
+def _contacts_list(raw) -> list:
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return []
+    return raw if isinstance(raw, list) else []
+
+
+def backfill_contacts_from_other(connection) -> int:
+    """Move the old single free-text `contact_other` into `contacts` as one entry
+    named "Other", then clear `contact_other`. Clearing is what makes this
+    idempotent: without it every boot would resurrect an entry HR had deleted.
+    Nothing is dropped - an entry already in `contacts` is kept and the old text
+    is appended. Returns how many candidates were moved."""
+    inspector = sa.inspect(connection)
+    columns = {c["name"] for c in inspector.get_columns("candidates")}
+    if not {"contact_other", "contacts"} <= columns:
+        return 0
+    rows = connection.execute(sa.text(
+        "SELECT candidate_id, contact_other, contacts FROM candidates "
+        "WHERE contact_other IS NOT NULL AND contact_other <> ''"
+    )).all()
+    for candidate_id, other, contacts in rows:
+        items = _contacts_list(contacts)
+        text = (other or "").strip()
+        if text:
+            items = [*items, {"label": "Other", "value": text}]
+        connection.execute(
+            sa.text("UPDATE candidates SET contacts = :contacts, contact_other = '' "
+                    "WHERE candidate_id = :candidate_id"),
+            {"contacts": json.dumps(items), "candidate_id": candidate_id},
+        )
+    return len(rows)
