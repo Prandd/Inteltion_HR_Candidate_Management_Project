@@ -60,7 +60,15 @@ class Candidate(Base):
     # duplicate-upload review. Still indexed: it is the lookup key.
     email_normalized = Column(Unicode(255), nullable=True, index=True)
     phone = Column(Unicode, nullable=False, default="")
+    # DEPRECATED - the old single free-text "other contact". Superseded by
+    # `contacts`; kept only so existing databases can be migrated (the text is
+    # moved into `contacts` at boot and this is cleared - see
+    # schema_compat.backfill_contacts_from_other). Not in the API any more.
     contact_other = Column(UText, nullable=False, default="", server_default="")
+    # Extra contact methods HR maintains by hand, any number of them:
+    # [{"label": "LINE", "value": "candidate.line"}, ...]. Manual data, never
+    # touched by a CV upload (HR_OWNED).
+    contacts = Column(JSON, nullable=False, default=list, server_default="[]")
     location = Column(Unicode, nullable=False, default="")
     applied_position = Column(Unicode, nullable=False, default="")
     summary = Column(UText, nullable=False, default="")

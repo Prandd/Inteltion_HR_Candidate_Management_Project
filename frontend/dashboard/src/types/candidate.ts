@@ -39,8 +39,13 @@ export interface CandidateSkill {
     tools: string[];
 }
 
+export interface ContactEntry {
+    label: string;
+    value: string;
+}
+
 export interface CandidateDetailType {
-    contact_other?: string;
+    contacts?: ContactEntry[];
     candidate_id: string;
     full_name?: string;
     applied_position?: string;
