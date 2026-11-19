@@ -15,6 +15,7 @@ from .config import ensure_dirs, settings
 from .database import Base, SessionLocal, engine
 from .models_db import Candidate
 from .routers import auth, candidates, comments, hr_accounts, pending_uploads, positions
+from .schema_compat import ensure_unicode_comment_column
 from .seed import seed_if_empty
 from .statuses import STATUS_VALUES, assert_valid_db_statuses
 from .storage import LocalDiskStorage, log_active_storage, storage
@@ -68,6 +69,9 @@ async def lifespan(_app: FastAPI):
     Base.metadata.create_all(bind=engine)
     _drop_unique_email_index()
     _ensure_contact_other_column()
+    with engine.begin() as connection:
+        if ensure_unicode_comment_column(connection):
+            log.info("Upgraded comment_logs.comment to Unicode NVARCHAR(MAX)")
     seed_if_empty()
 
     # F6 step 4 - catch status drift at boot, not when the Kanban silently drops

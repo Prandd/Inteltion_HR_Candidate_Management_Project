@@ -12,6 +12,8 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
+    Unicode,
+    UnicodeText,
 )
 
 from .database import Base
@@ -145,7 +147,9 @@ class CommentLog(Base):
     author_name = Column(String, nullable=False, default="")
     author_role = Column(String, nullable=False, default="hr")
     comment_type = Column(String, nullable=False, default="general")
-    comment = Column(Text, nullable=False)  # the body - editable
+    # SQL Server TEXT uses the database code page and can replace Thai with '?'.
+    # Force NVARCHAR(MAX) there; other databases keep their native Unicode text.
+    comment = Column(UnicodeText().with_variant(Unicode(), "mssql"), nullable=False)
     commented_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
